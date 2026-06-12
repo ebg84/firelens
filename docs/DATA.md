@@ -308,9 +308,12 @@ tracer-bullet protocol in TESTING.md before bulk acquisition.
   and `models=era5_land` returns null wind/precip. `dew_point_2m_mean` (the VPD
   humidity ingredient) and `temperature_2m_mean` are served daily aggregations;
   `wind_speed_unit=ms`; `timezone=GMT` (UTC daily, matches the spine, F7). Daily
-  `wind_speed_10m_max` is sustained, not gusts: ERA5 0.25° under-resolves
-  Diablo/Santa-Ana gust events (Tubbs day reads ~4.6 m/s sustained), so the
-  Red-Flag-day metric undercounts wind-driven events — disclosed caveat (§6).
+  `wind_speed_10m_max` is sustained wind; ERA5 0.25° ALSO serves a (coarse,
+  parameterized) `wind_gusts_10m_max` — verified at probe, fetched-not-served
+  (Tubbs day: 4.6 m/s sustained vs 13.2 m/s gust, the latter above the 11.18 m/s
+  Red-Flag threshold). v1 Red-Flag uses sustained by choice, so it undercounts
+  gust-driven events; a gust-aware variant is a deferred registry swap with its
+  data already on disk. Also fetched-not-served: `temperature_2m_mean`. (§6 caveat.)
 - [CITATION] Methodology-page attribution: Open-Meteo — Zippenfenig, P. (2023),
   *Open-Meteo.com Weather API*, Zenodo, doi:10.5281/zenodo.7970649 (CC-BY 4.0);
   ERA5 — Hersbach, H. et al. (2020), *The ERA5 global reanalysis*, QJRMS
@@ -330,6 +333,17 @@ tracer-bullet protocol in TESTING.md before bulk acquisition.
   ~2.3M georeferenced wildfire records, each requiring discovery date, final
   size, and a point location to PLSS-section precision or better.
   https://www.fs.usda.gov/rds/archive/catalog/RDS-2013-0009.6
+- [CITATION] Short, K.C. 2022. *Spatial wildfire occurrence data for the United
+  States, 1992–2020* [FPA_FOD_20221014], 6th Edition. Forest Service Research Data
+  Archive, doi:10.2737/RDS-2013-0009.6. Methodology-page notes: records are
+  **deduplicated at source**; location precision is to **PLSS section (~1 mi)** —
+  consistent with the 31 km served granularity, no parcel inference.
+- [VERIFIED at recon 2026-06-12] Table `Fires` (SpatiaLite); CA rows 251,881;
+  span 1992–2020 exact; every pairing field present as spelled. **DISCOVERY_DATE
+  is text `M/D/YYYY`** (e.g. '2/2/2005') — NOT Julian, NOT ISO; parse as
+  `%m/%d/%Y` or rebuild from FIRE_YEAR + DISCOVERY_DOY. Cause is text
+  (`NWCG_GENERAL_CAUSE`), no code lookup (unlike FRAP's numeric CAUSE). CA
+  large-fire population for the validation histogram (≥300 ac, classes E/F/G) = 2,873.
 - [TRAINING] Ships as SQLite/GeoPackage among other formats; key fields:
   `DISCOVERY_DATE`, `LATITUDE`, `LONGITUDE`, `FIRE_SIZE`, `FIRE_SIZE_CLASS`,
   `NWCG_GENERAL_CAUSE`, `STATE`. Confirm field names on load.
@@ -529,6 +543,13 @@ Per ZIP (area-weighted over member cells) and per county, per metric:
 - Robustness flag (CHOICE — cheapest defensible): bootstrap the 21 baseline
   years (1,000 resamples) → 90% CI of the baseline mean; `robust = recent
   mean outside CI`. The UI shows it as a footnote dot; reviewers can ask.
+
+**Where the signal lives (verified 2026-06-12, spine half):** mean-based metrics
+move modestly — statewide `fwi_mean` rises +9.3% baseline→recent (98% of ZIPs
+rising; spatial range −6%→+38%), and coastal ZIPs (e.g. 95404 at +2.3%) trend
+weaker than inland/SoCal. The demo-grade changes live in the **tail/threshold**
+metrics (`dry_wind_days`, FWI≥p95, VPD), because an annual mean washes out the
+extreme-day signal — reports should lead with threshold counts, not means.
 
 ## 3. Fire–weather pairing
 - Sources: FPA-FOD 6th ed (1992–2020, `DISCOVERY_DATE`), FRAP (2021–present,
