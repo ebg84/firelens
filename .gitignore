@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+.env
+scratch/
+*.nc
+*.gdb
+*.zip
