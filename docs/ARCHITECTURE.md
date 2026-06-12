@@ -220,10 +220,14 @@ drifting: raise DECISION CHALLENGE instead of proceeding.
   typed never drawn; the box CONTAINS California, the TIGER polygon join
   DEFINES it. cell_id always derived from each file's own coordinates
   (F1 — the v4.1 grid was rebuilt and differs from prior versions).
-- L14. Acquired ≠ served: the serving enum is locked (fwi, vpd,
-  dry_wind_days, cdd, season_length); ERC served on event cards; DC and
-  all other components are archive-only. Behavior indices (BI/IC/SC)
-  never surface in claims.
+- L14. Acquired ≠ served: the **v1 served set** (fwi, vpd, dry_wind_days,
+  cdd, season_length) is fixed for launch but NOT a closed enum — the
+  **Metric Extension Protocol** (registry in prep/metrics.py) admits further
+  descriptive, non-composite metrics via one formula fn + one registry entry,
+  with generic machinery (LUT/aggregate/trend/export/live) iterating the
+  registry. ERC served on event cards; DC and all other components are
+  archive-only until promoted through the protocol. Behavior indices
+  (BI/IC/SC) never surface in claims; composite/invented indices stay banned.
 - L15. Dailies come from Open-Meteo, not the CDS queue (decision locked
   after first-contact friction). Live "today" uses the FORECAST endpoint
   with past_days (the archive endpoint lags days — G12); wind requested
@@ -286,7 +290,7 @@ $FIRELENS_DATA/         raw/ interim/ exports/ — local only, never in git
 ```
 All pipeline paths resolve through the `FIRELENS_DATA` environment
 variable; no absolute paths in code. The only write path into the repo's
-`data/` is `prep/06_export_serving.py`, which runs the Tier 1–3 gates,
+`data/` is `prep/07_export.py`, which runs the Tier 1–3 gates,
 enforces the size budget, and writes `data/manifest.json`. Raw downloads
 are immutable; interim products are regenerable; defects are fixed by
 rerunning scripts, never by editing outputs.

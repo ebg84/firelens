@@ -15,7 +15,7 @@ tests; the developer read the green/red summary and the printed numbers.
    every module and paste the output before claiming completion.
 3. Pipeline tests run the pipeline phase and gate the serving-layer export: the export
    script refuses to write `data/` if Tier 1–3 fail (a literal
-   `assert run_checks()` at the top of `prep/06_export_serving.py`).
+   `assert run_checks()` at the top of `prep/07_export.py`).
 4. Build day: Tier 0 at the venue first thing; Tier 4 after each app module;
    Tier 5 (demo rehearsal) at the rehearsal gate. Commit only on green.
 5. Any red test gets ONE 30-minute fix attempt, then invoke the relevant cut

@@ -238,7 +238,7 @@ tracer-bullet protocol in TESTING.md before bulk acquisition.
   Rationale: acquisition generosity — the Canadian components exist
   nowhere else on the 1940+ spine and decompose the served composite;
   the NFDRS set completes the US-system archive for audit. **Serving
-  stays FWI + ERC only (locked enum); behavior-semantic indices (BI, IC,
+  stays FWI + ERC only (v1 served set); behavior-semantic indices (BI, IC,
   SC) never surface in product claims** — fire behavior is outside the
   descriptive boundary, same rule that excludes spread modeling.
 - Area: **N 42.25 / W −124.5 / E −114 / S 32** — every edge a multiple
@@ -302,6 +302,19 @@ tracer-bullet protocol in TESTING.md before bulk acquisition.
   0.1° from 1950), daily aggregation parameters, JSON/CSV, multi-decade
   single-location responses typically <100 ms, multi-location batching
   supported. https://open-meteo.com/en/docs/historical-weather-api
+- [VERIFIED at probe 2026-06-12] Bulk archive pulls MUST pass `models=era5`
+  (join integrity, non-negotiable): it lands on the 0.25° ERA5 grid cell-center,
+  an exact match to the GEFF cell (F1) — the default returns a ~0.1° offset point
+  and `models=era5_land` returns null wind/precip. `dew_point_2m_mean` (the VPD
+  humidity ingredient) and `temperature_2m_mean` are served daily aggregations;
+  `wind_speed_unit=ms`; `timezone=GMT` (UTC daily, matches the spine, F7). Daily
+  `wind_speed_10m_max` is sustained, not gusts: ERA5 0.25° under-resolves
+  Diablo/Santa-Ana gust events (Tubbs day reads ~4.6 m/s sustained), so the
+  Red-Flag-day metric undercounts wind-driven events — disclosed caveat (§6).
+- [CITATION] Methodology-page attribution: Open-Meteo — Zippenfenig, P. (2023),
+  *Open-Meteo.com Weather API*, Zenodo, doi:10.5281/zenodo.7970649 (CC-BY 4.0);
+  ERA5 — Hersbach, H. et al. (2020), *The ERA5 global reanalysis*, QJRMS
+  146:1999–2049, doi:10.1002/qj.3803. (GEFF/CEMS FWI cited via Vitolo et al. 2020.)
 - [TRAINING — confirm at tracer] **G12 latency:** the /v1/archive
   endpoint serves reanalysis and lags real time by days (ERA5 latency);
   "today" must come from the **/v1/forecast endpoint with `past_days`**,
@@ -433,7 +446,7 @@ tracer-bullet protocol in TESTING.md before bulk acquisition.
 # PART B — Analytics: formulas, thresholds, and the serving DDL
 
 > **Reading order:** 3 of 7 · **Depends on:** DATA.md (Part A) (which sources supply which variables)
-> **Single source of truth for:** all metric formulas and thresholds (with citations), the canonical metric enum, the serving-layer DDL (single schema source of truth), aggregation and degradation contracts, the limitations appendix
+> **Single source of truth for:** all metric formulas and thresholds (with citations), the v1 served metric set and the Metric Extension Protocol (§4.5/§4.5a), the serving-layer DDL (single schema source of truth), aggregation and degradation contracts, the limitations appendix
 > **Forward references:** DATA.md (Part C) calibrations F1 (cell_id from file coordinates) and F2 (occurrence dedup), defined in the next document
 Every formula cites the standard it implements. Judgment calls are marked
 CHOICE with a one-line justification. This file is the contract between the
@@ -541,9 +554,32 @@ Per ZIP (area-weighted over member cells) and per county, per metric:
   chance." Computed once in prep; shown on the methodology tab; exposed to
   the agent via get_methodology_stats.
 
-## 4.5 Canonical metric vocabulary & ZIP-level aggregation
-The metric enum, used **verbatim** by pipeline, tools, and UI:
+## 4.5 Served metric set & ZIP-level aggregation
+The **v1 served set**, used verbatim by pipeline, tools, and UI:
 `fwi`, `vpd`, `dry_wind_days`, `cdd`, `season_length`. No synonyms anywhere.
+This set is fixed for launch but **not a closed enum** — see §4.5a.
+
+### 4.5a Metric Extension Protocol (the served set is extensible, not closed)
+The served set is a **registry** (`prep/metrics.py`), not a hardcoded enum. Each
+metric is one `Metric` record — `name, unit, tier, served, inputs, daily_fn,
+annual_fn, percentile, trend_kind, degradation, live_fn, formula_ref,
+claim_shape` — and the generic machinery (derived-daily → annual_metrics →
+pctile_lut → zip_trends → export, plus the live "today" path) iterates the
+registry **in an explicit fixed order, never naming a metric**. Adding a metric
+= one formula function + one registry entry; no LUT/trend/export/live edit (the
+dummy-propagation test in 05_aggregates proves this). A metric enters the served
+set (`served=True`) only after it clears the full chain: a Tier-2 formula test,
+a stated `claim_shape`, and a docs line.
+**Hard limits — the protocol is descriptive-only:** every metric must trace to a
+published formula/standard and be a *single* measure; there is no path to
+combine metrics. Forecasts, fire-behavior/spread characterizations, parcel-level
+claims, and composite/invented indices remain banned (never-list). `degradation`
+names the per-metric fallback when a source is dark (e.g. `fwi → vpd_substitute`,
+`season_length → its relabeled variant`, dailies metrics → `None`); `live_fn`
+defines how the metric ranks a single live forecast-day (Friday's live module
+reuses it rather than reimplementing). Candidates staged `served=False` pending a
+named gate after Module 05: `dc_pctile` (deep-drought percentile, data already on
+the spine) and an ERC-based annual metric (ERC already on event cards).
 ZIP-level annual series (sparkline) are NOT a stored table: computed at
 query time as the `zip_cell_map`-weighted average over `annual_metrics`
 (milliseconds in DuckDB). Map joins use county FIPS, never county names.

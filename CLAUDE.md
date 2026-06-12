@@ -91,10 +91,18 @@ human intervention. Conventions:
    derives from each file's actual coordinate arrays (calibration F1).
 5. Occurrence dedup (F2): statistics use FPA-FOD exclusively 1992–2020,
    FRAP exclusively 2021+; FRAP geometries display for all eras.
-6. Canonical metric enum, verbatim everywhere: `fwi`, `vpd`,
-   `dry_wind_days`, `cdd`, `season_length`. Wind is m/s (Open-Meteo
-   defaults to km/h — request m/s). Baseline 1980–2000 vs 2010–present.
-   ZIP annual series = `zip_cell_map`-weighted averages at query time.
+6. **v1 served metric set + Metric Extension Protocol** (restructured
+   2026-06-12 from a closed enum): the v1 set — `fwi`, `vpd`,
+   `dry_wind_days`, `cdd`, `season_length` — is used verbatim, AND new
+   **descriptive, non-composite** metrics may be added through the registry
+   (`prep/metrics.py`): one formula function + one registry entry, with
+   LUTs/aggregates/trends/export iterating the registry generically (never
+   naming a metric). The never-list (forecasts, fire behavior/spread,
+   parcel, composite/invented indices) stays a hard boundary —
+   extensibility lives strictly inside it, single descriptive measures
+   only. Wind is m/s (Open-Meteo defaults to km/h — request m/s). Baseline
+   1980–2000 vs 2010–present. ZIP annual series = `zip_cell_map`-weighted
+   averages at query time.
 7. Fuel context (optional, LANDFIRE FBFM40): composition + burnable
    fraction per ZIP; categorical handling only; never multiplied into
    weather metrics; no composite index.
@@ -140,7 +148,7 @@ anything that doesn't reduce to one of them is drift.
 - **Era trend** — "95404 averages 14.3 Red Flag-condition days/yr in
   2010–present vs 10.0 in the 1980–2000 baseline: **+43%, and extreme
   days come 2.1× as often.**" ← zip_trends(baseline, recent, pct_change,
-  freq_ratio, robust); computed per the locked enum.
+  freq_ratio, robust); computed per the v1 served set.
 - **Season length** — "the fire-weather season here runs **~24 days
   longer** than in the baseline era." ← annual_metrics.season_len →
   zip_trends.
