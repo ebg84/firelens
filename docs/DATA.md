@@ -491,6 +491,14 @@ OVER (PARTITION BY cell_id ORDER BY date)` as run-group key, then group.
 CHOICE: 21.3 is the EFFIS "high" class lower bound (EFFIS classes: 5.2 /
 11.2 / 21.3 / 38.0 / 50.0). `season_length(year)` = count of fire-weather
 days. Report the FWI ≥ 38 ("extreme") count as a secondary statistic.
+**FWI scale is open-ended** — the Canadian FWI has no upper bound, and GEFF
+documents it as such. The served corpus (1940–2026) ranges 0 → ~238.5, the
+maximum occurring in arid Great Basin/Mojave cells in late spring–summer under
+high Drought Code (verified geographically/seasonally coherent at ingest, F1
+tracer). Raw values are never clamped or rescaled; acquisition and spine gates
+assert `fwi ≥ 0` with a `< 500` sanity ceiling whose only job is to catch a
+unit-error slip (a km/h-style 3.6× or order-of-magnitude error), never a real
+extreme.
 
 ### 1.5 Weekly FWI percentile rank
 - Bin by ISO week; ISO week 53 merged into week 52 (avoids a thin bin).

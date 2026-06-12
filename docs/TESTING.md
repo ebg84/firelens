@@ -50,7 +50,10 @@ For every raw dataset, an automated check prints a one-line PASS/FAIL:
 - GEFF FWI: opens with xarray; **grid registration (F1): cell_id derives
   from the file's actual lat/lon arrays, and Open-Meteo centers match them
   exactly**; bbox covers 32–42.1°N / -124.5–-114°W; date
-  range 1940-01-01 → within 60 days of today; FWI values in [0, 150];
+  range 1940-01-01 → within 60 days of today; FWI ≥ 0 on an **open-ended scale**
+  (Canadian FWI has no upper bound — observed corpus max ~238 in arid Great
+  Basin/Mojave summer cells; gates use a `< 500` sanity ceiling that catches
+  unit errors, not weather);
   <1% NaN over land cells after 1950.
 - ERA5/Open-Meteo dailies: per cell, ≥95% of expected days present per year;
   temp in [-40, 60] °C; dewpoint ≤ temp on ≥99.5% of days; precip ≥ 0.
