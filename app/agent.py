@@ -26,7 +26,8 @@ load_dotenv()
 # split plus graceful degradation is the right robustness for today.
 INTERPRETER_MODEL = os.environ.get("FIRELENS_INTERPRETER_MODEL", "claude-sonnet-4-6")
 AGENT_MODEL = os.environ.get("FIRELENS_AGENT_MODEL", "claude-opus-4-8")  # 3b agentic path
-MAX_TOKENS = 400          # citizen reads are short; tight cap = faster + far less timeout risk
+MAX_TOKENS = 10000        # headroom so grounded reads finish (the prompt still asks for brevity;
+                          # billing is by actual generation, so latency/cost stay ~the same)
 TIMEOUT_S = 60.0
 
 # Shown when the model call fails entirely — the data panels still render, so the page
@@ -163,7 +164,7 @@ def stream_events(zip_code: str, question: str | None = None):
 # --- 3b: bounded agentic layer (Opus 4.8, capped tools, max 2 tool rounds) ---
 
 AGENT_MAX_ROUNDS = 2
-AGENT_MAX_TOKENS = 600
+AGENT_MAX_TOKENS = 10000  # headroom so the agentic answer (after tool calls) completes its thought
 # The SYNC (non-stream) agentic path fails FAST to the Sonnet fallback — a hung Opus call
 # must not stall a demo (the old 60s x 2-retry x rounds = ~197s). The STREAMING product path
 # (agent_stream) keeps the normal client, since streaming receives progressively and is robust.
