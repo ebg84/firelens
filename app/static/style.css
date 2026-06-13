@@ -27,6 +27,7 @@ body {
 .brand { font-size: 22px; font-weight: 700; letter-spacing: .3px; }
 .brand .mark { color: var(--accent); }
 .tagline { color: var(--muted); font-size: 13.5px; }
+.tagline-note { color: var(--na); font-size: 12px; }
 main { max-width: 1080px; margin: 0 auto; padding: 28px; }
 
 .ask label { display: block; color: var(--muted); font-size: 13px; margin-bottom: 8px; }
