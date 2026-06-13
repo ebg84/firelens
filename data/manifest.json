@@ -93,6 +93,41 @@
         "cause_class",
         "source"
       ]
+    },
+    "nri_zip": {
+      "rows": 1693,
+      "columns": [
+        "zip",
+        "n_tracts",
+        "wfir_risks",
+        "wfir_afreq",
+        "wfir_ealt"
+      ]
+    },
+    "zip_priority_matrix": {
+      "rows": 1693,
+      "columns": [
+        "zip",
+        "fwi_level",
+        "wfir_ealt",
+        "quadrant"
+      ]
+    },
+    "fuel_context": {
+      "rows": 1801,
+      "columns": [
+        "zip",
+        "total_px",
+        "non_burnable_frac",
+        "burnable_frac",
+        "dominant_class",
+        "grass_frac",
+        "grass_shrub_frac",
+        "shrub_frac",
+        "timber_understory_frac",
+        "timber_litter_frac",
+        "slash_blowdown_frac"
+      ]
     }
   },
   "served_metrics": [
@@ -206,7 +241,7 @@
       "state": "additive",
       "note": "1693 != 1801: 104 non-residential + 4 F8 (consumer omits-with-note)",
       "tables": [
-        "nri_zip (interim)"
+        "nri_zip"
       ]
     },
     "priority_matrix": {
@@ -217,7 +252,7 @@
       "vintage": "FWI-era x NRI-2025",
       "state": "additive",
       "tables": [
-        "zip_priority_matrix (interim)"
+        "zip_priority_matrix"
       ]
     },
     "firms_density": {
@@ -240,7 +275,7 @@
       "state": "additive",
       "note": "burnable composition meaningful only where burnable_frac is substantial (363 ZIPs <10% burnable = urban); show burnable_frac primary, composition secondary",
       "tables": [
-        "fuel_context (interim)"
+        "fuel_context"
       ]
     }
   }

@@ -44,7 +44,9 @@ def composition(zcta_gdf_in_raster_crs, raster_path, value_group, nodata=-9999):
                "non_burnable_frac": (nonb / total) if total else None,
                "burnable_frac": (burn / total) if total else None}
         for g in BURN_GROUPS:
-            row[g + "_frac"] = (grp.get(g, 0) / burn) if burn else 0.0
+            # NULL (not 0.0) where nothing burnable: composition is UNDEFINED, not a
+            # measured zero — a zero-burnable ZIP has no burnable pixels to compose.
+            row[g + "_frac"] = (grp.get(g, 0) / burn) if burn else None
         row["dominant_class"] = (max(BURN_GROUPS, key=lambda g: grp.get(g, 0))
                                  if burn else "non_burnable")
         rows.append(row)
