@@ -126,8 +126,9 @@ Each is a single query + assertion with the expected direction stated:
   identical pct_change (smells like a broken join).
 
 ## Tier 4 — App integration (build day, after each module)
-- DB: `get_trends('95404')` returns all 5 metrics in <1 s; unknown ZIP
-  returns a typed NotFound, not an exception.
+- DB: `get_trends('95404')` returns all 3 served metrics (fwi,
+  season_length, dc_pctile) in <1 s; unknown ZIP returns a typed NotFound,
+  not an exception.
 - Map: county GeoJSON loads <2 s; **no visible slivers/gaps between
   adjacent ZCTAs at drill-in (G8 — topology check, visual)**; the FIRMS
   HeatMap renders from firms_density rows (G1); county and ZIP views use

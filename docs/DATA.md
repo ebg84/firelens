@@ -237,10 +237,12 @@ tracer-bullet protocol in TESTING.md before bulk acquisition.
   SC). Australian group: none** (no consumer, eucalypt-calibrated).
   Rationale: acquisition generosity — the Canadian components exist
   nowhere else on the 1940+ spine and decompose the served composite;
-  the NFDRS set completes the US-system archive for audit. **Serving
-  stays FWI + ERC only (v1 served set); behavior-semantic indices (BI, IC,
-  SC) never surface in product claims** — fire behavior is outside the
-  descriptive boundary, same rule that excludes spread modeling.
+  the NFDRS set completes the US-system archive for audit. **Serving stays
+  FWI-derived only (fwi, season_length, dc_pctile); ERC is computed
+  (erc_mean) but archive-only — its percentile surface (erc_pctile) is
+  unpopulated/100% NULL — and behavior-semantic indices (BI, IC, SC) never
+  surface in product claims** — fire behavior is outside the descriptive
+  boundary, same rule that excludes spread modeling.
 - Area: **N 42.25 / W −124.5 / E −114 / S 32** — every edge a multiple
   of 0.25 so the store's grid-snap returns the identical extent on every
   request (typed, never map-drawn; enter once, leave untouched across
@@ -674,9 +676,11 @@ refinement. Pacific Palisades correctly lands in `priority` (high on both — th
 catastrophe confirms it).
 
 ## 4.5 Served metric set & ZIP-level aggregation
-The **v1 served set**, used verbatim by pipeline, tools, and UI:
-`fwi`, `vpd`, `dry_wind_days`, `cdd`, `season_length`. No synonyms anywhere.
-This set is fixed for launch but **not a closed enum** — see §4.5a.
+The **as-built v1 served set**, used verbatim by pipeline, tools, and UI:
+`fwi`, `season_length`, `dc_pctile`. `vpd`, `cdd`, `dry_wind_days` are
+declared `pending` (blocked on the ERA5 harvest/wind; fold in by re-export).
+No synonyms anywhere. This set is fixed for launch but **not a closed
+enum** — see §4.5a.
 
 ### 4.5a Metric Extension Protocol (the served set is extensible, not closed)
 The served set is a **registry** (`prep/metrics.py`), not a hardcoded enum. Each

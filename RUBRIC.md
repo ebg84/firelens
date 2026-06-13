@@ -8,8 +8,8 @@
 
 ## R1 — Data layer verification (prior asset; verifier re-runs these at kickoff as the session log's first artifact)
 - [ ] `pytest -m "tier1 or tier2" -q` exits 0
-- [ ] Anchor test passes: Tubbs 2017-10-08 ≥ 90th percentile (FWI, or VPD
-      under the documented degradation) for its Sonoma cell; Palisades
+- [ ] Anchor test passes: Tubbs 2017-10-08 ≥ 90th percentile (FWI; VPD is
+      pending, not a served fallback) for its Sonoma cell; Palisades
       and Eaton 2025 present with Red-Flag = true
 - [ ] `data/manifest.json` exists and `du -sh data/` ≤ 100 MB
 - [ ] Era-dedup query (DATA.md Part C F2) returns 0 violations

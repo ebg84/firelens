@@ -220,13 +220,15 @@ drifting: raise DECISION CHALLENGE instead of proceeding.
   typed never drawn; the box CONTAINS California, the TIGER polygon join
   DEFINES it. cell_id always derived from each file's own coordinates
   (F1 — the v4.1 grid was rebuilt and differs from prior versions).
-- L14. Acquired ≠ served: the **v1 served set** (fwi, vpd, dry_wind_days,
-  cdd, season_length) is fixed for launch but NOT a closed enum — the
-  **Metric Extension Protocol** (registry in prep/metrics.py) admits further
-  descriptive, non-composite metrics via one formula fn + one registry entry,
-  with generic machinery (LUT/aggregate/trend/export/live) iterating the
-  registry. ERC served on event cards; DC and all other components are
-  archive-only until promoted through the protocol. Behavior indices
+- L14. Acquired ≠ served: the **as-built v1 served set** (fwi,
+  season_length, dc_pctile) is fixed for launch; vpd, cdd, dry_wind_days are
+  declared `pending` (blocked on the ERA5 harvest/wind, fold in by
+  re-export). NOT a closed enum — the **Metric Extension Protocol**
+  (registry in prep/metrics.py) admits further descriptive, non-composite
+  metrics via one formula fn + one registry entry, with generic machinery
+  (LUT/aggregate/trend/export/live) iterating the registry. DC IS served as
+  dc_pctile; ERC is computed (erc_mean) but NOT served — erc_pctile is 100%
+  NULL, so event cards show "—" for ERC percentile. Behavior indices
   (BI/IC/SC) never surface in claims; composite/invented indices stay banned.
 - L15. **REVERSED & CLOSED 2026-06-12** (dailies source). Per-cell Open-Meteo,
   chosen to dodge the CDS queue, was disproven by measurement (free tier is

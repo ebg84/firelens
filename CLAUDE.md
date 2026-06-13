@@ -92,8 +92,9 @@ human intervention. Conventions:
 5. Occurrence dedup (F2): statistics use FPA-FOD exclusively 1992–2020,
    FRAP exclusively 2021+; FRAP geometries display for all eras.
 6. **v1 served metric set + Metric Extension Protocol** (restructured
-   2026-06-12 from a closed enum): the v1 set — `fwi`, `vpd`,
-   `dry_wind_days`, `cdd`, `season_length` — is used verbatim, AND new
+   2026-06-12 from a closed enum): the **as-built served set** is `fwi`,
+   `season_length`, `dc_pctile`; `vpd`, `cdd`, `dry_wind_days` are declared
+   `pending` (blocked on the ERA5 harvest/wind, folding in by re-export). New
    **descriptive, non-composite** metrics may be added through the registry
    (`prep/metrics.py`): one formula function + one registry entry, with
    LUTs/aggregates/trends/export iterating the registry generically (never

@@ -1,0 +1,16 @@
+# Render deploy (container, auto-deploy from main). The DuckDB serving DB is rebuilt from
+# committed data/ in the Docker build step; ANTHROPIC_API_KEY is set in the dashboard, never committed.
+services:
+  - type: web
+    name: firelens
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false                      # set in the Render dashboard (secret, not committed)
+      - key: FIRELENS_INTERPRETER_MODEL
+        value: claude-sonnet-4-6         # interpreter path (/api/ask): fast
+      - key: FIRELENS_AGENT_MODEL
+        value: claude-opus-4-8           # agentic 3b path: reasoning + Opus score

@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FireLens — Explore the hazard × exposure map</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="mark">▲</span> FireLens</div>
+    <div class="tagline">Explore — every CA ZIP by hazard × exposure quadrant</div>
+    <nav class="nav">
+      <a href="/">Decision tool</a>
+      <a href="/explore" class="active">Explore map</a>
+    </nav>
+  </header>
+
+  <div class="explore-wrap">
+    <div id="map"></div>
+    <aside id="side">
+      <h2>Hazard × exposure</h2>
+      <div class="hint">Click a ZIP to read its grounded assessment. Toggle the basemap (top-right):
+        flip to satellite to see the terrain behind the fuel reading.</div>
+      <div class="legend">
+        <span><span class="sw" style="background:#d64545"></span>Priority (high/high)</span>
+        <span><span class="sw" style="background:#e08a2e"></span>Monitor (high haz)</span>
+        <span><span class="sw" style="background:#3b82c4"></span>Harden (high exp)</span>
+        <span><span class="sw" style="background:#3fa564"></span>Low priority</span>
+        <span><span class="sw" style="background:#5a6b78"></span>No NRI</span>
+      </div>
+      <div id="ex-panel"></div>
+    </aside>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+          integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="/static/explore.js"></script>
+</body>
+</html>

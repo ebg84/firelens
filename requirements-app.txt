@@ -1,0 +1,11 @@
+# Slim RUNTIME deps for the deployed app (NOT the pipeline — no GDAL/rasterio/cdsapi/
+# geopandas; the GeoJSON is pre-staged and committed). Versions pinned to requirements.txt.
+fastapi==0.136.3
+uvicorn==0.49.0
+anthropic==0.109.1
+duckdb==1.5.3
+pydantic==2.13.4
+python-dotenv==1.2.2
+# build_duckdb.py (build step) uses pandas; pyarrow backs parquet IO.
+pandas==3.0.3
+pyarrow==24.0.0

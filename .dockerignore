@@ -1,0 +1,16 @@
+# Keep the image slim & the build reproducible. KEEP: app/ data/ prep/ docs/ scripts/
+# requirements-app.txt (docs/AGENT.md is read at runtime; data/ feeds build_duckdb).
+.venv/
+.git/
+__pycache__/
+*.pyc
+.pytest_cache/
+scratch/
+raw/
+*.nc
+*.zip
+*.duckdb
+*.duckdb.wal
+tests/
+.env
+firelens-data/
