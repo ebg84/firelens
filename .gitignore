@@ -5,3 +5,5 @@ scratch/
 *.nc
 *.gdb
 *.zip
+*.duckdb
+*.duckdb.wal

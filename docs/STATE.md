@@ -131,9 +131,24 @@ with zero code change.
     (e.g. a reference-ZIP fwi_mean trend, a known-(lat,lon)→GEFF-cell ground-truth anchor). If
     not closed before the event, **record it as a KNOWN LIMITATION** in the brief — do not
     leave it implied-covered.
-- **(d) DuckDB as a GENERATED artifact** from the served layer — gitignore the `.duckdb`,
-  commit the *builder*, diff-validate the built DB vs the source parquets (never a 2nd source
-  of truth).
+  - **(c-d) ALL-NULL CLAIM COLUMNS** (surfaced by the DuckDB build's all-null scan; same class
+    as c-b — claims-without-data, **do NOT fabricate**):
+    - `fire_events.erc_pctile` — **100% NULL**, yet VARIABLES.md says ERC percentile is "shown
+      on event cards." Either source/compute it from the spine (ERC LUT exists) or drop it from
+      the event-card spec. Until then a consumer must show "—", never a filled value.
+    - `zip_trends.robust` — **100% NULL**, yet the canonical era-trend claim shape references a
+      "robust" flag. Either populate the robustness flag in `05_aggregates` or drop it from the
+      claim shape. Do not let a consumer read NULL as "not robust" (absence ≠ false).
+    These three (structures_destroyed, erc_pctile, robust) are the full all-NULL set in the
+    committed serving layer — a NULL-provenance gate (c-a) should pin all three at 100% NULL so
+    a future fabricating fill flips RED.
+- **(d) DONE — DuckDB serving DB as a GENERATED artifact** (`prep/build_duckdb.py`,
+  `tests/prep/test_duckdb_build.py`). Read-only, rebuilt from committed `data/` only (the three
+  additive layers were promoted in for HEAD-reproducibility); `.duckdb` gitignored, builder
+  committed. Diff-validation (rowcount/dtype/NULL-count/range/ZIP-format) CLEAN; carries
+  `metric_domains` + `cell_annual` (824-cell field) + `zip_serving` wide view (1,801 canonical,
+  honest NULLs: 108 NRI-absent, 34 fuel-undefined). Strengthened `check_metric_spatial_universe`
+  to assert fuel coverage decomposition (1767+22+12) — the blind spot the diff caught.
 - **(e) GitHub push** — `.gitignore` raw/ + `*.nc` + `*.duckdb`; provenance README; **the
   developer authenticates and pushes (the agent cannot).**
 
