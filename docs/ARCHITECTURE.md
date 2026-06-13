@@ -345,3 +345,77 @@ functionally identical (same code, same data, key from `.env`) and is
 the standing fallback during a demonstration. Note: ERA5-family timestamps
 are UTC while users are in America/Los_Angeles; all stored joins use
 calendar dates, and the live path converts to local date explicitly.
+
+
+---
+
+# PART 3 — Built-layer decision record (M1–8c + frameworks)
+
+Authoritative decision/reasoning/alternatives for the data layer as built. Companion to
+the Ledger above (which captured the original design); this records what was decided during
+the build, grounded in the committed files. See VARIABLES/MAPPINGS/ANALYTICS/CHANGELOG.md.
+
+**D1 — The spine is GEFF *indices*, not raw ERA5 forcing.**
+- Decision: store FWI/ERC/DC (the GEFF index output) on the `(cell_id, date)` spine; the raw
+  ERA5 inputs (temp/wind/humidity/precip) are NOT retained.
+- Reasoning: GEFF computes FWI correctly from ERA5 forcing (a stateful system); consuming the
+  authoritative index output eliminates a reimplementation project and is more auditable. The
+  index is what the claims are about (percentiles, trends).
+- Alternatives rejected: (a) compute FWI locally from ERA5 forcing — banned (stateful, error-prone);
+  (b) download both indices AND forcing — the forcing was never needed for the served claims, and
+  raw measurements now come via the separate dailies lane (ERA5/GEE). Consequence: no raw
+  temp/precip/wind queryable until the dailies land.
+
+**D2 — Served/pending manifest-contract split.**
+- Decision: the manifest declares each metric `served | pending | additive` with its lane +
+  blocked-on input; the export ships only served, and pending metrics fold in via idempotent
+  re-export with zero code change (the registry iterates generically).
+- Reasoning: decouples the deliverable from acquisition (Module 7 ships without vpd/cdd); a
+  promotion is a DATA change, not a code change.
+- Alternatives rejected: (a) block the export until all metrics land — would have made the
+  deliverable hostage to the stalled CDS harvest; (b) hardcode the served list — breaks additive
+  fold-in.
+
+**D3 — NRI is a CONTRAST/decomposition layer, NOT a validation.**
+- Decision: present NRI beside FireLens as the *consequence* axis; the near-zero FWI↔NRI
+  correlation is reported as the finding, never spun as a win.
+- Reasoning: FWI = hazard, NRI = exposure-dominated consequence (loss × vulnerability ÷
+  resilience); they are orthogonal (corr −0.009 vs raw exposure). A strong correlation would
+  mean redundancy. The null PROVES they measure different things.
+- Alternatives rejected: (a) frame NRI as validating FireLens (dishonest — they don't track);
+  (b) force a positive correlation by metric-fishing (would invert the thesis).
+
+**D4 — Hazard×exposure matrix is the product feature (not a score).**
+- Decision: cross FWI hazard × NRI exposure into a per-ZIP quadrant (priority/monitor/harden/
+  low_priority); categorical, never a blended risk number.
+- Reasoning: the federal composite seals hazard+exposure+vulnerability into one number where
+  opposite drivers score alike; decomposing into two axes maps mitigation to the right lever and
+  yields the priority quadrant neither layer produces alone.
+- Alternatives rejected: a composite FireLens risk score — banned (L2); it would make FireLens
+  the sealed score it critiques.
+
+**D5 — Fuel is the SUBSTRATE axis, its own lane.**
+- Decision: LANDFIRE FBFM40 per-ZIP composition (what's here to burn) as a standalone additive
+  layer, never multiplied into weather metrics; show `burnable_frac` primary, composition secondary.
+- Reasoning: fuel answers "can fire carry here," distinct from "is the weather dangerous";
+  composition is only meaningful where burnable_frac is substantial (363 ZIPs <10% burnable).
+- Alternatives rejected: a fuel×weather composite "fire potential" index — banned (no composites);
+  showing class composition for low-burnable urban ZIPs — misleading (a 1% sliver reads as "timber").
+
+**D6 — cell→ZIP aggregation model (hub-and-spoke, fine→coarse only).**
+- Decision: weather lives at the native 0.25° cell; ZIP values are `zip_cell_map`-weighted
+  averages at query time; coarse values are never disaggregated below cell.
+- Reasoning: serves every claim at the granularity its measurement supports (31 km); the 824
+  in-CA cells are a buffer superset (732 serve ZIPs; the 92 orphan cells are accepted slack).
+- Alternatives rejected: (a) store a denormalized per-ZIP weather table — a second source of
+  truth (denorm must be a regenerable artifact, validation check #7); (b) interpolate below cell —
+  false precision, violates the auditability thesis.
+
+**D7 — Coherence-contract pattern (consumers read `domains`, never hardcode).**
+- Decision: `prep/domains.py` → `manifest.metric_domains` (generated `SCHEMA.md`) declares each
+  metric's spatial_grain/range/granularity/vintage; consumers refuse/omit out-of-domain requests
+  by reading it; enforcement gates + the join-resolution sweep keep declaration and reality in lock-step.
+- Reasoning: prevents the build-day fragility class (snapshot on a time axis, daily where only
+  annual exists, a metric shown for a ZIP that lacks it) by contract rather than by catching bugs later.
+- Alternatives rejected: hardcoded grains/ranges in the app — drifts silently the moment a layer
+  folds in.
