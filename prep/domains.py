@@ -74,9 +74,11 @@ DOMAINS = {
         "blocked_on": "acquisition", "lane": "raw/firms/ not staged", "tables": [],
     },
     "fuel_context": {
-        "spatial_grain": "ZIP/cell", "join_key": "zip|cell_id",
-        "temporal_range": "current-cycle", "temporal_granularity": "static",
-        "vintage": "LANDFIRE FBFM40", "state": "pending",
-        "blocked_on": "acquisition", "lane": "raw/landfire/ not staged", "tables": [],
+        "spatial_grain": "ZIP via raster zonal (native 30m FBFM40 pixel underneath)",
+        "join_key": "zip", "temporal_range": "current-cycle", "temporal_granularity": "static",
+        "vintage": "LANDFIRE FBFM40 LF2025", "state": "additive",
+        "note": "burnable composition meaningful only where burnable_frac is substantial "
+                "(363 ZIPs <10% burnable = urban); show burnable_frac primary, composition secondary",
+        "tables": ["fuel_context (interim)"],
     },
 }

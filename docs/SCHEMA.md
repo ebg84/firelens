@@ -16,4 +16,4 @@ Do not edit by hand. Regenerate: `python prep/07_export.py`. Source of truth:
 | `nri` | additive | ZIP(1693) | `zip` | 2025-snapshot | static | FEMA NRI v1.20 (Dec 2025) |
 | `priority_matrix` | additive | ZIP(1693) | `zip` | static | static | FWI-era x NRI-2025 |
 | `firms_density` | pending | hex/cell | `hex_id|cell_id` | 2000-present | all-time-density | NASA FIRMS (MODIS+VIIRS) |
-| `fuel_context` | pending | ZIP/cell | `zip|cell_id` | current-cycle | static | LANDFIRE FBFM40 |
+| `fuel_context` | additive | ZIP via raster zonal (native 30m FBFM40 pixel underneath) | `zip` | current-cycle | static | LANDFIRE FBFM40 LF2025 |

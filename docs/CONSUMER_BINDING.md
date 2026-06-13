@@ -49,6 +49,13 @@ layered for depth:**
 - **Bivariate encoding** — e.g. hazard color × exposure saturation from `priority_matrix`,
   to show multidimensionality (the two axes at once) rather than one flat scalar.
 
+**Fuel (LANDFIRE FBFM40) is a natural depth layer:** the native 30 m raster is far finer
+than ZIP, so render it as a continuous fuel-class field beneath ZIP boundaries (not a flat
+ZIP fill). **Burnable-composition binding:** show `burnable_frac` as the PRIMARY signal and
+the class composition (grass/shrub/timber/…) as SECONDARY — composition is only meaningful
+where `burnable_frac` is substantial (363 ZIPs are <10% burnable = urban). A 99%-urban ZIP
+must NEVER read as "timber" because its 1% burnable sliver happens to be timber.
+
 **HARD CONSTRAINT — no false precision (the auditability thesis):** use ONLY the real
 finer grains we actually computed (cells, fire points). **NEVER interpolate below the
 0.25° cell resolution, and NEVER imply parcel-level detail we do not have.** A smooth

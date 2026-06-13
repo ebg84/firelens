@@ -34,13 +34,13 @@ def test_every_metric_declares_full_domain_block():
             assert md[name].get(field), f"{name} missing domain field '{field}'"
 
 
-def test_firms_and_landfire_declared_pending():
-    """Closes unguarded-risk #8 — pending layers must be declared so a consumer shows
-    'data pending', not break."""
+def test_firms_declared_pending_fuel_declared_additive():
+    """Closes unguarded-risk #8: FIRMS still pending (declared, so a consumer shows
+    'data pending'); fuel_context promoted to additive (joined via 8c raster zonal)."""
     md = _domains()
-    for layer in ["firms_density", "fuel_context"]:
-        assert md.get(layer, {}).get("state") == "pending", f"{layer} not declared pending"
-        assert md[layer].get("blocked_on"), f"{layer} missing blocked_on"
+    assert md.get("firms_density", {}).get("state") == "pending", "firms_density not pending"
+    assert md["firms_density"].get("blocked_on"), "firms_density missing blocked_on"
+    assert md.get("fuel_context", {}).get("state") == "additive", "fuel_context not promoted to additive"
 
 
 # ---- actual parquet matches declared grain (per-metric) ----------------------
