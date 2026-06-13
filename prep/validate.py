@@ -55,10 +55,10 @@ def check_metric_spatial_universe():
     zm = {r[0] for r in c.execute(f"select distinct zip from '{D/'zip_meta.parquet'}'").fetchall()}
     cm = {r[0] for r in c.execute(f"select distinct cell_id from '{D/'cell_meta.parquet'}'").fetchall()}
     res = {}
-    # zip metrics subset canonical
-    for t, p in [("zip_trends", D/"zip_trends.parquet"), ("nri_zip", I/"nri_zip.parquet"),
-                 ("zip_priority_matrix", I/"zip_priority_matrix.parquet"),
-                 ("fuel_context", I/"fuel_context.parquet")]:
+    # zip metrics subset canonical (nri/matrix/fuel now committed in data/, read from D)
+    for t, p in [("zip_trends", D/"zip_trends.parquet"), ("nri_zip", D/"nri_zip.parquet"),
+                 ("zip_priority_matrix", D/"zip_priority_matrix.parquet"),
+                 ("fuel_context", D/"fuel_context.parquet")]:
         if p.exists():
             s = {r[0] for r in c.execute(f"select distinct zip from '{p}'").fetchall()}
             res[t] = {"n": len(s), "outside_canonical": len(s - zm), "gap_from_canonical": len(zm - s)}
@@ -66,15 +66,37 @@ def check_metric_spatial_universe():
     for t, p in [("annual_metrics", D/"annual_metrics.parquet"), ("pctile_lut", D/"pctile_lut.parquet")]:
         s = {r[0] for r in c.execute(f"select distinct cell_id from '{p}'").fetchall()}
         res[t] = {"n": len(s), "cells_outside_cell_meta": len(s - cm)}
-    fuel_zero = c.execute(f"select count(*) from '{I/'fuel_context.parquet'}' where burnable_frac=0").fetchone()[0] \
-        if (I/"fuel_context.parquet").exists() else None
     passed = all(v.get("outside_canonical", 0) == 0 and v.get("cells_outside_cell_meta", 0) == 0
                  for v in res.values())
-    # nri/matrix expected 108 gap; fuel expected 0 gap
+    # nri/matrix expected 108 gap; fuel expected 0 gap (COMPLETE canonical coverage)
     nri_ok = res.get("nri_zip", {}).get("gap_from_canonical") == 108
-    passed = passed and nri_ok
+    fuel_complete = res.get("fuel_context", {}).get("gap_from_canonical") == 0   # the missed gate
+    passed = passed and nri_ok and fuel_complete
+
+    # fuel coverage DECOMPOSITION — every canonical ZIP is exactly one of three categories,
+    # and composition is NULL exactly when nothing is burnable (the blind spot the DuckDB diff
+    # caught: the sweep had computed fuel's gap but never asserted it).
+    fp = D / "fuel_context.parquet"
+    if fp.exists():
+        no_raster = c.execute(f"select count(*) from '{fp}' where total_px=0").fetchone()[0]
+        nothing_burnable = c.execute(f"select count(*) from '{fp}' where burnable_frac=0").fetchone()[0]
+        normal = c.execute(f"select count(*) from '{fp}' where burnable_frac>0").fetchone()[0]
+        total = c.execute(f"select count(*) from '{fp}'").fetchone()[0]
+        # composition-NULL iff non-burnable (no measured-zero fabrication, no stray real-0)
+        partition_violations = c.execute(
+            f"select count(*) from '{fp}' where (shrub_frac is null) != "
+            f"(burnable_frac is null or burnable_frac=0)").fetchone()[0]
+        fuel_ok = (no_raster + nothing_burnable + normal == total == 1801
+                   and (no_raster, nothing_burnable, normal) == (22, 12, 1767)
+                   and partition_violations == 0)
+        passed = passed and fuel_ok
+        res["fuel_decomposition"] = {"normal(burnable>0)": normal, "no_raster(total_px=0)": no_raster,
+                                     "nothing_burnable(burnable=0)": nothing_burnable, "total": total,
+                                     "expected": "1767+22+12=1801",
+                                     "composition_null_partition_violations": partition_violations,
+                                     "ok": fuel_ok}
     res["nri_108_gap_ok"] = nri_ok
-    res["fuel_zero_burnable_ZIPs"] = fuel_zero
+    res["fuel_complete_coverage"] = fuel_complete
     return {"check": "2. metric spatial universe", "passed": passed, "detail": res}
 
 

@@ -21,8 +21,9 @@ Result: **7/7 checks PASS**.
 - fuel_context: {'n': 1801, 'outside_canonical': 0, 'gap_from_canonical': 0}
 - annual_metrics: {'n': 824, 'cells_outside_cell_meta': 0}
 - pctile_lut: {'n': 824, 'cells_outside_cell_meta': 0}
+- fuel_decomposition: {'normal(burnable>0)': 1767, 'no_raster(total_px=0)': 22, 'nothing_burnable(burnable=0)': 12, 'total': 1801, 'expected': '1767+22+12=1801', 'composition_null_partition_violations': 0, 'ok': True}
 - nri_108_gap_ok: True
-- fuel_zero_burnable_ZIPs: 12
+- fuel_complete_coverage: True
 
 ## PASS — 3. cross-metric ZIP key alignment
 - zip_trends: {'wrong_len(!=5)': 0, 'outside_canonical': 0}

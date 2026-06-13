@@ -45,8 +45,12 @@ def fix_fuel_nulls(con):
     src = I / "fuel_context.parquet"
     others = [c for c in con.execute(f"select * from '{src}' limit 0").df().columns
               if c not in COMPOSITION]
+    # NULL composition wherever nothing is burnable: burnable_frac = 0 (covered, all
+    # non-burnable) OR burnable_frac IS NULL (total_px=0, no raster coverage). Both mean
+    # composition is UNDEFINED — matches fuel.py's `if burn else None` for ALL such ZIPs.
     null_cols = ", ".join(
-        f"case when burnable_frac = 0 then null else {c} end as {c}" for c in COMPOSITION)
+        f"case when burnable_frac is null or burnable_frac = 0 then null else {c} end as {c}"
+        for c in COMPOSITION)
     select = ", ".join(others) + ", " + null_cols
     tmp = I / "fuel_context.__tmp.parquet"
     con.execute(f"copy (select {select} from '{src}') to '{tmp}' (format parquet)")
@@ -58,9 +62,12 @@ def main():
 
     # 1. fuel NULL-correctness (in interim, the source of truth)
     fix_fuel_nulls(con)
-    nb = con.execute(f"select count(*) from '{I/'fuel_context.parquet'}' "
-                     f"where burnable_frac = 0 and shrub_frac is null").fetchone()[0]
-    print(f"fuel NULL fix: {nb} zero-burnable ZIPs now have NULL composition (true parquet null)")
+    src = f"'{I/'fuel_context.parquet'}'"
+    nb = con.execute(f"select count(*) from {src} where shrub_frac is null").fetchone()[0]
+    nr = con.execute(f"select count(*) from {src} where shrub_frac is null and total_px=0").fetchone()[0]
+    z0 = con.execute(f"select count(*) from {src} where shrub_frac is null and burnable_frac=0").fetchone()[0]
+    print(f"fuel NULL fix: {nb} ZIPs now have NULL composition ({nr} no-raster + {z0} nothing-burnable) "
+          f"— true parquet null, matching fuel.py's `if burn else None`")
 
     # 2. copy the three into data/
     for stem in PROMOTE.values():
@@ -85,9 +92,13 @@ def main():
     for stem, expect in [("nri_zip", 1693), ("zip_priority_matrix", 1693), ("fuel_context", 1801)]:
         n = con.execute(f"select count(distinct zip) from '{DATA/f'{stem}.parquet'}'").fetchone()[0]
         print(f"  {stem}: {n} ZIPs (expected {expect}) {'OK' if n == expect else 'MISMATCH'}")
-    z = con.execute(f"select count(*) from '{DATA/'fuel_context.parquet'}' "
-                    f"where burnable_frac = 0 and shrub_frac is null").fetchone()[0]
-    print(f"  fuel zero-burnable w/ NULL composition: {z} (expected 12) {'OK' if z == 12 else 'MISMATCH'}")
+    fc = f"'{DATA/'fuel_context.parquet'}'"
+    z = con.execute(f"select count(*) from {fc} where shrub_frac is null").fetchone()[0]
+    zr = con.execute(f"select count(*) from {fc} where shrub_frac is null and total_px=0").fetchone()[0]
+    zb = con.execute(f"select count(*) from {fc} where shrub_frac is null and burnable_frac=0").fetchone()[0]
+    ok = (z == 34 and zr == 22 and zb == 12)
+    print(f"  fuel NULL composition: {z} (= {zr} no-raster + {zb} nothing-burnable; "
+          f"expected 34 = 22 + 12) {'OK' if ok else 'MISMATCH'}")
 
 
 if __name__ == "__main__":
