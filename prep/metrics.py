@@ -192,12 +192,14 @@ REGISTRY = [
     ),
     # ---- candidates: defined so the machinery is exercised; served=False until a
     # ---- named gate after Module 05 (formula test + claim shape + docs that night).
+    # PROMOTED to v1 (2026-06-12): deep-drought percentile cleared the gate (formula
+    # on the spine, claim shape, docs, LUT machinery) — served from spine data alone.
     Metric(
-        name="dc_pctile", unit="percentile", tier="candidate", served=False,
+        name="dc_pctile", unit="percentile", tier="v1", served=True,
         inputs=("dc",), daily_fn=lambda df: df["dc"], annual_fn=dc_annual,
         percentile=True, trend_kind="pct_change", degradation=None,
         live_fn=lambda day: float(day["dc"]),
-        formula_ref="Van Wagner 1987 Drought Code (GEFF); DATA.md §4.5a candidate",
+        formula_ref="Van Wagner 1987 Drought Code (GEFF); DATA.md §4.5a",
         claim_shape="deep-drought (Drought Code) ranks in the {pctile}th percentile of the local record",
     ),
     Metric(

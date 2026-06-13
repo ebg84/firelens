@@ -1,0 +1,117 @@
+{
+  "build": {
+    "git_hash": "733a8ca",
+    "built_utc": "2026-06-13T00:12:51Z",
+    "spine_now": true
+  },
+  "tables": {
+    "cell_meta": {
+      "rows": 824,
+      "columns": [
+        "cell_id",
+        "lat",
+        "lon",
+        "county_fips",
+        "land_frac"
+      ]
+    },
+    "zip_meta": {
+      "rows": 1801,
+      "columns": [
+        "zip",
+        "lat",
+        "lon",
+        "county_fips"
+      ]
+    },
+    "zip_cell_map": {
+      "rows": 4415,
+      "columns": [
+        "zip",
+        "cell_id",
+        "weight"
+      ]
+    },
+    "annual_metrics": {
+      "rows": 71688,
+      "columns": [
+        "cell_id",
+        "year",
+        "fwi_mean",
+        "fwi_max",
+        "extreme_days",
+        "season_len",
+        "dc_max",
+        "erc_mean"
+      ]
+    },
+    "pctile_lut": {
+      "rows": 85696,
+      "columns": [
+        "metric",
+        "cell_id",
+        "iso_week",
+        "p10",
+        "p20",
+        "p30",
+        "p40",
+        "p50",
+        "p60",
+        "p70",
+        "p80",
+        "p90",
+        "p95",
+        "p99"
+      ]
+    },
+    "zip_trends": {
+      "rows": 5403,
+      "columns": [
+        "zip",
+        "metric",
+        "baseline",
+        "recent",
+        "pct_change",
+        "freq_ratio",
+        "robust"
+      ]
+    },
+    "fire_events": {
+      "rows": 3205,
+      "columns": [
+        "fire_id",
+        "name",
+        "ign_date",
+        "acres",
+        "lat",
+        "lon",
+        "cell_id",
+        "county_fips",
+        "fwi_pctile",
+        "erc_pctile",
+        "structures_destroyed",
+        "cause_class",
+        "source"
+      ]
+    }
+  },
+  "served_metrics": [
+    "dc_pctile",
+    "fwi",
+    "season_length"
+  ],
+  "pending_metrics": {
+    "vpd": {
+      "lane": "Lane A CDS harvest (t_max + td_mean) -> 05_aggregates rerun",
+      "blocked_on": "harvest"
+    },
+    "cdd": {
+      "lane": "Lane A CDS harvest (precip) -> 05 rerun; precip accumulation-day check pending",
+      "blocked_on": "harvest"
+    },
+    "dry_wind_days": {
+      "lane": "wind ladder (CDS daily-stats wind upstream issue; forum tripwire)",
+      "blocked_on": "wind"
+    }
+  }
+}

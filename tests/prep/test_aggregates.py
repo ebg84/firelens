@@ -98,9 +98,9 @@ def test_zip_trends_served_spine_metrics_only():
     import duckdb
     con = duckdb.connect()
     mets = {r[0] for r in con.execute(f"select distinct metric from '{TRENDS}'").fetchall()}
-    assert {"fwi", "season_length"}.issubset(mets), mets
-    # candidates are served=False -> never in trends
-    assert "dc_pctile" not in mets and "erc_annual" not in mets
+    # dc_pctile promoted to v1; erc_annual remains a candidate (served=False)
+    assert {"fwi", "season_length", "dc_pctile"}.issubset(mets), mets
+    assert "erc_annual" not in mets
     row = con.execute(
         f"select pct_change from '{TRENDS}' where zip='95404' and metric='fwi'").fetchone()
     assert row is not None and row[0] is not None

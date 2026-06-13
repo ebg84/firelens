@@ -86,9 +86,10 @@ def test_registry_order_is_deterministic():
 
 def test_v1_served_and_candidates():
     served = {m.name for m in M.REGISTRY if m.served}
-    assert served == {"fwi", "vpd", "dry_wind_days", "cdd", "season_length"}
+    # dc_pctile promoted to v1 (2026-06-12); erc_annual is the lone remaining candidate
+    assert served == {"fwi", "vpd", "dry_wind_days", "cdd", "season_length", "dc_pctile"}
     candidates = {m.name for m in M.REGISTRY if not m.served}
-    assert candidates == {"dc_pctile", "erc_annual"}
+    assert candidates == {"erc_annual"}
 
 
 def test_registry_names_unique_and_cited():
