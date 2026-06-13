@@ -145,8 +145,31 @@ const positron = L.tileLayer(
   { maxZoom: 19, subdomains: "abcd", attribution: "© OpenStreetMap, © CARTO" });
 
 const map = L.map("map", { center: [37.3, -119.3], zoom: 6, layers: [esri] });
-L.control.layers({ "Satellite (Esri)": esri, "Light (Positron)": positron }, null,
-  { position: "topright", collapsed: false }).addTo(map);
+
+// Fire-ignition density overlay (off by default, lazy-loaded on first toggle). Weighted by
+// ignition-day FWI percentile — extreme-day ignitions burn brighter (our distinctive angle).
+const fireHeat = L.heatLayer([], {
+  radius: 16, blur: 22, maxZoom: 10, minOpacity: 0.25,
+  gradient: { 0.2: "#3b0a45", 0.4: "#8c2160", 0.6: "#d6453f", 0.8: "#f0902e", 1.0: "#ffe14d" },
+});
+let firesLoaded = false;
+map.on("overlayadd", async (e) => {
+  if (e.layer !== fireHeat || firesLoaded) return;
+  firesLoaded = true;
+  try {
+    const d = await (await fetch("/api/fires")).json();
+    const pts = d.fires
+      .filter((f) => f.lat != null && f.lon != null)
+      .map((f) => [f.lat, f.lon, f.fwi_pctile == null ? 0.5 : f.fwi_pctile]);  // intensity = FWI pctile
+    fireHeat.setLatLngs(pts);
+  } catch (err) { firesLoaded = false; }  // allow retry on re-toggle
+});
+
+L.control.layers(
+  { "Satellite (Esri)": esri, "Light (Positron)": positron },
+  { "Recorded ignitions (FOD/FRAP 1992–2025)": fireHeat },
+  { position: "topright", collapsed: false },
+).addTo(map);
 
 let selected = null;
 

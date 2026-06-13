@@ -62,6 +62,15 @@ def test_geo_zcta_tooltip_fields(client):
     assert any(f["properties"]["wfir_ealt"] is None for f in feats)  # -> rendered gray, not a value
 
 
+def test_fires_overlay_data_and_honest_label(client):
+    d = client.get("/api/fires").json()
+    assert d["count"] == 3205
+    assert "FOD/FRAP 1992" in d["label"] and "all fires" not in d["label"].lower()
+    assert all(f["lat"] is not None and f["lon"] is not None for f in d["fires"])
+    yrs = [f["year"] for f in d["fires"] if f["year"]]
+    assert min(yrs) >= 1992 and max(yrs) <= 2025  # federal/state record window, never pre-1992
+
+
 def test_geo_centroids_tooltip_fields(client):
     pts = client.get("/api/geo/centroids").json()["points"]
     assert all({"zip", "quadrant", "county_fips", "fwi_pct_change"} <= set(p) for p in pts)

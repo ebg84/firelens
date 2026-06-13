@@ -208,6 +208,20 @@ def cell_series(zip_code: str) -> dict | None:
     }
 
 
+def all_fires() -> list[dict]:
+    """Every recorded ignition (FOD/FRAP 1992-2025) with point + acres + ignition-day FWI
+    percentile — for the map's density overlay. A sample of significant recorded fires, not a census."""
+    rows = db.query(
+        "select name, ign_date, acres, fwi_pctile, lat, lon from fire_events "
+        "where lat is not null and lon is not null"
+    )
+    return [
+        {"name": r[0], "year": (r[1].year if r[1] is not None else None),
+         "acres": r[2], "fwi_pctile": r[3], "lat": r[4], "lon": r[5]}
+        for r in rows
+    ]
+
+
 def nearby_fires(zip_code: str, radius_km: float = 50.0, limit: int = 6) -> list[dict]:
     """Documented fires near a ZIP (haversine on the ZIP centroid), largest first.
 

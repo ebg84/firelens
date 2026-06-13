@@ -267,6 +267,14 @@ def geo_zcta():
     return JSONResponse(fc)
 
 
+@app.get("/api/fires")
+def fires() -> dict:
+    """Recorded ignitions for the map density overlay. Honest label: a federal/state
+    record sample (FOD/FRAP 1992-2025), never 'all fires'."""
+    f = queries.all_fires()
+    return {"label": "Recorded fire ignitions, FOD/FRAP 1992–2025", "count": len(f), "fires": f}
+
+
 @app.get("/api/geo/centroids")
 def geo_centroids() -> dict:
     """Fallback map layer: ZIP centroids + quadrant from zip_meta (zero external data)."""
