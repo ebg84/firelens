@@ -87,3 +87,11 @@ def test_live_structures_question_refuses_to_fabricate():
     r = agent.interpret("95404", "How many structures did the Tubbs fire destroy?")
     a = r["answer"].lower()
     assert any(s in a for s in ("doesn't carry", "empty", "no data", "not in"))
+
+
+@live_only
+def test_live_fwi_has_plain_language_gloss():
+    """Explain-on-use: a response citing FWI must gloss it in plain language, not bare jargon."""
+    a = agent.interpret("95404")["answer"].lower()
+    assert "fire weather index" in a  # spelled out, not just the acronym
+    assert any(w in a for w in ("how dangerous", "heat", "wind", "dry", "conditions"))
