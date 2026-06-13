@@ -215,13 +215,20 @@ def _zcta_featurecollection() -> dict | None:
             return None
         fc = json.loads(GEO_PATH.read_text())
         rows = db.query(
-            "select s.zip, s.quadrant, m.fwi_level, s.wfir_ealt, s.county_fips, s.fwi_pct_change "
-            "from zip_serving s left join zip_priority_matrix m on s.zip = m.zip"
+            "select s.zip, s.quadrant, m.fwi_level, s.wfir_ealt, s.county_fips, s.fwi_pct_change, "
+            "s.fwi_recent, ed.extreme_recent "
+            "from zip_serving s "
+            "left join zip_priority_matrix m on s.zip = m.zip "
+            "left join (select zcm.zip, "
+            "  sum(ca.extreme_days * zcm.weight) / sum(zcm.weight) as extreme_recent "
+            "  from zip_cell_map zcm join cell_annual ca on zcm.cell_id = ca.cell_id "
+            "  where ca.year >= 2010 group by zcm.zip) ed on s.zip = ed.zip"
         )
         meta = {
             r[0]: {
                 "quadrant": r[1], "fwi_level": r[2], "wfir_ealt": r[3],
                 "county_fips": r[4], "fwi_pct_change": r[5],
+                "fwi_recent": r[6], "extreme_recent": r[7],
             }
             for r in rows
         }

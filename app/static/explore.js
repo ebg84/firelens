@@ -48,6 +48,94 @@ const fmtMoney = (v) => v == null ? "—" : "$" + Math.round(v).toLocaleString()
 const fmtNum = (v, d=1) => v == null ? "—" : Number(v).toLocaleString(undefined,{minimumFractionDigits:d,maximumFractionDigits:d});
 const fmtPct = (v) => v == null ? "—" : (v>=0?"+":"") + (v*100).toFixed(1) + "%";
 
+// --- metric views: quadrant (categorical) + viridis-by-value (continuous) ---
+const VIEWS = {
+  quadrant:       { label: "Quadrant", kind: "cat" },
+  fwi_recent:     { label: "Fire-weather (FWI)", kind: "viridis",
+                    gloss: "how dangerous fire-weather conditions are — heat, wind, dryness",
+                    fmt: (v) => Number(v).toFixed(1) },
+  wfir_ealt:      { label: "Exposure ($/yr)", kind: "viridis", log: true,
+                    gloss: "FEMA's estimate of building value lost to wildfire each year",
+                    fmt: (v) => "$" + Math.round(v).toLocaleString() },
+  extreme_recent: { label: "Extreme days", kind: "viridis",
+                    gloss: "days per year of extreme fire-weather conditions (recent era)",
+                    fmt: (v) => Number(v).toFixed(1) },
+};
+const VIEW_ORDER = ["quadrant", "fwi_recent", "wfir_ealt", "extreme_recent"];
+const VIRIDIS = [[68,1,84],[72,40,120],[62,74,137],[49,104,142],[38,130,142],[31,158,137],[53,183,121],[110,206,88],[181,222,43],[253,231,37]];
+function viridis(t) {
+  t = Math.max(0, Math.min(1, t));
+  const n = VIRIDIS.length - 1, i = Math.min(n - 1, Math.floor(t * n)), f = t * n - i;
+  const a = VIRIDIS[i], b = VIRIDIS[i + 1], c = (k) => Math.round(a[k] + (b[k] - a[k]) * f);
+  return `rgb(${c(0)},${c(1)},${c(2)})`;
+}
+let currentView = "quadrant";
+const featureProps = [];
+const domains = {};
+
+function computeDomain(view) {
+  const vs = featureProps.map((p) => p[view]).filter((v) => v != null);
+  return { min: Math.min(...vs), max: Math.max(...vs), log: VIEWS[view].log };
+}
+function fillFor(p, view) {
+  if (view === "quadrant") return quadColor(p.quadrant);
+  const v = p[view];
+  if (v == null) return NA_COLOR;  // NRI-absent etc. — distinct gray, never a fake viridis value
+  const d = domains[view] || computeDomain(view);
+  const t = d.log
+    ? (Math.log(v + 1) - Math.log(d.min + 1)) / ((Math.log(d.max + 1) - Math.log(d.min + 1)) || 1)
+    : (v - d.min) / ((d.max - d.min) || 1);
+  return viridis(t);
+}
+function tooltipFor(p, view) {
+  const cty = countyName(p.county_fips);
+  const l1 = `<strong>${p.zip}</strong>${cty ? ` · ${cty} County` : ""}`;
+  let l2;
+  if (view === "quadrant") {
+    l2 = p.quadrant && QUAD[p.quadrant] ? QUAD[p.quadrant].tip : "Not in FEMA NRI — no quadrant";
+  } else {
+    const m = VIEWS[view], v = p[view];
+    l2 = v == null ? `${m.label}: no data`
+      : `${m.label}: ${m.fmt(v)} — <span style="color:#9fb0bd">${m.gloss}</span>`;
+  }
+  return `${l1}<br/>${l2}`;
+}
+function renderLegend(view) {
+  const el = document.getElementById("map-legend");
+  if (view === "quadrant") {
+    el.innerHTML =
+      [["priority","Priority"],["monitor","Monitor"],["harden","Harden"],["low_priority","Low priority"]]
+        .map(([k,l]) => `<span><span class="sw" style="background:${QUAD[k].color}"></span>${l}</span>`).join("")
+      + `<span><span class="sw" style="background:${NA_COLOR}"></span>No NRI</span>`;
+    return;
+  }
+  const d = domains[view] || computeDomain(view), m = VIEWS[view];
+  const grad = "linear-gradient(to right," + VIRIDIS.map((c) => `rgb(${c[0]},${c[1]},${c[2]})`).join(",") + ")";
+  el.innerHTML =
+    `<div style="width:100%"><div style="height:10px;border-radius:4px;background:${grad}"></div>`
+    + `<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:3px">`
+    + `<span>${m.fmt(d.min)}</span><span>${m.fmt(d.max)}</span></div>`
+    + `<span style="font-size:11px;color:var(--muted)"><span class="sw" style="background:${NA_COLOR}"></span>no data</span></div>`;
+}
+function buildViewControl() {
+  const el = document.getElementById("map-views");
+  el.innerHTML = VIEW_ORDER.map((v) =>
+    `<button data-v="${v}" class="${v === currentView ? "active" : ""}">${VIEWS[v].label}</button>`).join("");
+  el.querySelectorAll("button").forEach((b) => b.addEventListener("click", () => applyView(b.dataset.v)));
+}
+function applyView(view) {
+  currentView = view;
+  if (view !== "quadrant") domains[view] = computeDomain(view);
+  Object.values(zipLayer).forEach((lyr) => {
+    const p = lyr.feature.properties, c = fillFor(p, view);
+    lyr.setStyle({ fillColor: c, color: c });
+    lyr.bindTooltip(tooltipFor(p, view), { sticky: true });
+  });
+  if (selected) selected.setStyle({ weight: 3, color: "#fff" });  // keep selection highlight on top
+  buildViewControl();
+  renderLegend(view);
+}
+
 // --- basemaps ---
 const esri = L.tileLayer(
   "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
@@ -94,7 +182,10 @@ let geoLayer = null;
 function selectZip(zip) {
   const lyr = zipLayer[zip];
   if (lyr && geoLayer) {
-    if (selected) geoLayer.resetStyle(selected);
+    if (selected) {  // restore the previous selection to the CURRENT view's color, not quadrant
+      const c = fillFor(selected.feature.properties, currentView);
+      selected.setStyle({ weight: 1, color: c });
+    }
     lyr.setStyle({ weight: 3, color: "#fff" }); lyr.bringToFront(); selected = lyr;
     map.fitBounds(lyr.getBounds(), { maxZoom: 12 });
   } else if (zipLatLng[zip]) {
@@ -105,15 +196,16 @@ function selectZip(zip) {
 
 function addPolygons(fc) {
   geoLayer = L.geoJSON(fc, {
-    style: (f) => ({ fillColor: quadColor(f.properties.quadrant), fillOpacity: 0.55,
+    style: (f) => ({ fillColor: quadColor(f.properties.quadrant), fillOpacity: 0.6,
       color: quadColor(f.properties.quadrant), weight: 1, opacity: 0.9 }),
     onEachFeature: (f, lyr) => {
       const p = f.properties;
-      lyr.bindTooltip(tipHtml(p), { sticky: true });
+      featureProps.push(p);
       zipLayer[p.zip] = lyr;
       lyr.on("click", () => selectZip(p.zip));
     },
   }).addTo(map);
+  applyView(currentView);  // sets fill + tooltips + view selector + legend
 }
 
 function addCentroids(points) {
@@ -123,6 +215,7 @@ function addCentroids(points) {
       fillOpacity: 0.85, color: "#0b0f12", weight: 1 })
       .bindTooltip(tipHtml(p)).on("click", () => loadPanel(p.zip)).addTo(map);
   });
+  renderLegend("quadrant");  // fallback path stays categorical (no per-ZIP viridis values)
 }
 
 // --- search: ZIP -> select+zoom; county -> fit bounds + list; else message ---

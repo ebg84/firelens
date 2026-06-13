@@ -133,6 +133,7 @@ main { max-width: 1080px; margin: 0 auto; padding: 28px; }
 .nav { margin-left: auto; display: flex; gap: 16px; align-items: baseline; }
 .nav a { color: var(--muted); text-decoration: none; font-size: 13.5px; }
 .nav a:hover, .nav a.active { color: var(--accent); }
+.map-views-label { color: var(--muted); font-size: 12px; margin: 4px 0 6px; }
 .explore-wrap { display: flex; height: calc(100vh - 59px); }
 #map { flex: 1; height: 100%; background: #0b0f12; }
 #side {

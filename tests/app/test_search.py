@@ -52,8 +52,14 @@ def test_geo_zcta_tooltip_fields(client):
     r = client.get("/api/geo/zcta")
     if r.status_code != 200:
         pytest.skip("geometry not staged")
-    props = r.json()["features"][0]["properties"]
-    assert {"zip", "quadrant", "county_fips", "fwi_pct_change"} <= set(props)
+    feats = r.json()["features"]
+    props = feats[0]["properties"]
+    # tooltip + viridis coloring fields
+    assert {"zip", "quadrant", "county_fips", "fwi_pct_change",
+            "fwi_recent", "extreme_recent", "wfir_ealt"} <= set(props)
+    # honest NULLs: continuous spine metrics fully populated; NRI exposure null for NRI-absent ZIPs
+    assert all(f["properties"]["fwi_recent"] is not None for f in feats)
+    assert any(f["properties"]["wfir_ealt"] is None for f in feats)  # -> rendered gray, not a value
 
 
 def test_geo_centroids_tooltip_fields(client):
