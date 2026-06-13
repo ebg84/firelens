@@ -16,7 +16,7 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import db, queries
+from . import db, methodology, queries
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 GEO_PATH = db.REPO_ROOT / "data" / "geo" / "ca_zcta.geojson"
@@ -199,6 +199,25 @@ def series(zip_code: str) -> dict:
     return s
 
 
+@app.get("/api/methodology")
+def api_methodology() -> dict:
+    """Auditability capstone: plain-meaning + REAL source/grain/range per metric (the verified
+    derivations), plus the live metric_domains contract — so 'how is FWI computed' is queryable."""
+    contract = db.query(
+        "select metric, state, spatial_grain, temporal_range, temporal_granularity, vintage "
+        "from metric_domains order by metric"
+    )
+    return {
+        "framing": methodology.FRAMING,
+        "metrics": methodology.METHODOLOGY,
+        "contract": [
+            {"metric": r[0], "state": r[1], "spatial_grain": r[2], "temporal_range": r[3],
+             "temporal_granularity": r[4], "vintage": r[5]}
+            for r in contract
+        ],
+    }
+
+
 # --- map data (the /explore in-tandem evidence surface) ---
 
 _geo_cache: dict | None = None
@@ -279,3 +298,8 @@ def index() -> FileResponse:
 @app.get("/explore", include_in_schema=False)
 def explore() -> FileResponse:
     return FileResponse(STATIC_DIR / "explore.html")
+
+
+@app.get("/methods", include_in_schema=False)
+def methods() -> FileResponse:
+    return FileResponse(STATIC_DIR / "methods.html")
