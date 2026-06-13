@@ -295,38 +295,69 @@ tracer-bullet protocol in TESTING.md before bulk acquisition.
   anchors, and percentiles are all unaffected.
 
 ### ERA5 daily variables
-- Primary: CDS (standard https://cds.climate.copernicus.eu account + dataset
-  license acceptance required before first API call). [TRAINING]
-- [VERIFIED] Fallback with zero queue: **Open-Meteo Historical Weather API**,
-  endpoint `/v1/archive` — ERA5 at 0.25° from **1940 to present** (ERA5-Land
-  0.1° from 1950), daily aggregation parameters, JSON/CSV, multi-decade
-  single-location responses typically <100 ms, multi-location batching
-  supported. https://open-meteo.com/en/docs/historical-weather-api
-- [VERIFIED at probe 2026-06-12] Bulk archive pulls MUST pass `models=era5`
-  (join integrity, non-negotiable): it lands on the 0.25° ERA5 grid cell-center,
-  an exact match to the GEFF cell (F1) — the default returns a ~0.1° offset point
-  and `models=era5_land` returns null wind/precip. `dew_point_2m_mean` (the VPD
-  humidity ingredient) and `temperature_2m_mean` are served daily aggregations;
-  `wind_speed_unit=ms`; `timezone=GMT` (UTC daily, matches the spine, F7). Daily
-  `wind_speed_10m_max` is sustained wind; ERA5 0.25° ALSO serves a (coarse,
-  parameterized) `wind_gusts_10m_max` — verified at probe, fetched-not-served
-  (Tubbs day: 4.6 m/s sustained vs 13.2 m/s gust, the latter above the 11.18 m/s
-  Red-Flag threshold). v1 Red-Flag uses sustained by choice, so it undercounts
-  gust-driven events; a gust-aware variant is a deferred registry swap with its
-  data already on disk. Also fetched-not-served: `temperature_2m_mean`. (§6 caveat.)
+**Lane A — CDS `derived-era5-single-levels-daily-statistics` is the restored Tier-A
+primary.** Per-cell Open-Meteo was **disproven by measurement** (2026-06-12): the
+free tier is volume-weighted at every tier (minutely/hourly/daily), a decade×4-var
+call ≈ ~100 call-equivalents, so 732 cells × 86 yr is ~45–130 h of governed
+fetching — infeasible for the window. CDS daily-statistics returns all cells per
+area-cropped request, grid-aligned to GEFF.
+
+**Three-part code structure:**
+- `prep/04_fetch_dailies.py` — Open-Meteo **live-call** doctrine + governor (Friday's
+  "today" forecast path) + the post-event wind-backfill ladder. Its `bulk()` is kept
+  **marked DISPROVEN** (pointer: the calibration above), not deleted, so the doctrine
+  and governor survive for the live path.
+- `prep/04b_fetch_era5_daily.py` — the CDS acquisition. Manifest = **exactly 141
+  requests** (3 combos × 47 years 1980–2026, newest-first), template = server-verified
+  request **9bad5726**. Developer-run; ≤4 concurrent; 403 = STOP-and-report.
+- `prep/04c_ingest_dailies.py` (+ `prep/ingest_dailies.py`) — the melt →
+  `interim/dailies.parquet` ({cell_id, date, t_max, td_mean, precip}).
+
+**Probe-verified facts** (9bad5726 output `2m_temperature_daily_mean_2025.nc`): data
+var `t2m`, units **`K`**; `valid_time` 365 gapless days, **0 NaN**; grid 0.25° /
+57×47 / 45→31 / **−125→−113.5 longitudes already SIGNED** (unlike GEFF's 0–360 —
+`to_signed_lon` is idempotent on them, explicitly tested); scalar `number` coord
+dropped. Sanity: Sonoma cell (38.5,−122.5) = 286.73 K on 2025-01-07, 292.61 K on
+2025-07-15. Unit conversions live in `fields.py` and are **asserted against each
+file's reported units, never assumed** — 2m_temperature/2m_dewpoint **K→°C**,
+total_precipitation **metres→mm**. cell_id derives from the file's own coords (F1);
+a non-empty spine-filtered output IS the registration proof. **Precip
+accumulation-day attribution is a NAMED PENDING check** until a `total_precipitation`
+file lands (a wrong call shifts every CDD by one day).
+
+**The three combos — riders CUT, not deferred:**
+- `2m_temperature` × `daily_maximum` → `t_max` (VPD)
+- `2m_dewpoint_temperature` × `daily_mean` → `td_mean` (VPD's humidity ingredient — a
+  *moisture* measurement, not a temperature; the T−Td gap IS the drying-power signal)
+- `total_precipitation` × `daily_sum` → `precip` (CDD)
+No t_min/t_mean/wind/gust riders. **Registry: `vpd` and `cdd` light up from these
+columns; `dry_wind_days` stays pending**, its lane documented in the manifest.
+
+**1980–2026 era rationale:** the dailies span the union of the baseline (1980–2000),
+recent (2010–2026), and pairing (1992–2020) eras — the daily-derived metrics feed era
+*trends*, not the deep percentile record, so 1980+ suffices. **FWI keeps the full
+1940+ record on the spine** (GEFF); only the daily-derived metrics start at 1980.
+
+**Wind ladder (post-event):** `dry_wind_days` needs daily-max wind; CDS
+daily-statistics wind has a known upstream issue (CDS forum tripwire:
+https://forum.ecmwf.int/t/issue-affecting-some-parameters-from-the-era5-post-processed-daily-statistics-on-single-levels/15057).
+Ladder: (1) CDS wind when fixed, (2) raw ERA5 10m u/v → speed,
+(3) Open-Meteo wind-only low-weight pull under the governor. Never lower the
+sustained Red-Flag threshold to compensate (doctrine #5).
+
+**L15 CLOSED** (dailies source): Open-Meteo per-cell — chosen to dodge the CDS queue —
+was disproven by measurement (volume-weighted limits, ~100 equiv/decade-call); CDS
+daily-statistics, the documented Tier-A primary all along, is restored. Evidence
+chain: this section + AUDIT.md + the calibration logs.
+
 - [CITATION] Methodology-page attribution: Open-Meteo — Zippenfenig, P. (2023),
   *Open-Meteo.com Weather API*, Zenodo, doi:10.5281/zenodo.7970649 (CC-BY 4.0);
   ERA5 — Hersbach, H. et al. (2020), *The ERA5 global reanalysis*, QJRMS
   146:1999–2049, doi:10.1002/qj.3803. (GEFF/CEMS FWI cited via Vitolo et al. 2020.)
-- [TRAINING — confirm at tracer] **G12 latency:** the /v1/archive
-  endpoint serves reanalysis and lags real time by days (ERA5 latency);
-  "today" must come from the **/v1/forecast endpoint with `past_days`**,
-  which serves current conditions from weather models. The live feature
-  reports "the most recent available day," date-labeled.
-- [TRAINING] Daily parameter names to use: `temperature_2m_max`,
-  `temperature_2m_min`, `dew_point_2m_mean`, `wind_speed_10m_max`,
-  `precipitation_sum`. Confirm exact names against the live docs page when
-  writing the puller (Open-Meteo guarantees no breaking renames, but check).
+- [TRAINING] **G12 latency (live path):** the reanalysis lags real time by days, so
+  Friday's "today" comes from the Open-Meteo **/v1/forecast endpoint with `past_days`**
+  (models=era5, America/Los_Angeles date), reporting "the most recent available day,"
+  date-labeled — distinct from this Lane-A historical acquisition.
 
 ### FPA-FOD (fire-occurrence pairing backbone)
 - [VERIFIED] Current: **6th edition, 1992–2020**, `RDS-2013-0009.6`,
@@ -573,7 +604,74 @@ extreme-day signal — reports should lead with threshold counts, not means.
 - The claim it must support: "X% of large-fire ignition days rank above the
   80th percentile of local historical fire weather, vs 20% expected by
   chance." Computed once in prep; shown on the methodology tab; exposed to
-  the agent via get_methodology_stats.
+  the agent via get_methodology_stats. This is the **predictive** validation panel.
+
+## 4a. NRI federal contrast panel (Module 8a — validation by decomposition)
+FEMA National Risk Index (v1.20, tract-level WFIR_ fields) joined to our ZCTAs via the
+HUD TRACT_ZIP crosswalk. Aggregation differs by variable type (prep/nri.py): intensive
+fields are residential-weighted **averages** `Σ(v×RES_RATIO)/Σ(RES_RATIO)` (WFIR_RISKS,
+WFIR_AFREQ); the extensive dollar field is a bare **allocation** `Σ($×RES_RATIO)`
+(WFIR_EALT). NRI sits **BESIDE** FireLens as an external federal benchmark — never a
+served risk column (L3).
+**Result, reported honestly:** per-ZIP NRI wildfire vs recent-era mean FWI correlates
+weakly/null — Spearman **+0.10** (WFIR_AFREQ, the hazard analog) and **−0.04**
+(WFIR_RISKS, the composite), n=1,693 ZIPs. **The null is the finding, not a failure:** a
+strong correlation would mean the layers are redundant; the divergence proves they
+measure distinct things. NRI risk is **exposure/loss-dominated**; FireLens isolates the
+**atmospheric hazard** the composite buries.
+**Exhibit:** Death Valley (92328) — CA's most extreme fire weather (recent FWI 40.9) and
+**near-zero expected loss ($2,714 EALT)** because nobody lives there; Pacific Palisades
+(90272) — moderate fire weather (28.9) and the **highest loss ($6.8M)** via WUI exposure.
+*Fire Factor is the credit score; FireLens is the credit report*: NRI seals
+hazard+exposure+vulnerability into one number (Death Valley scores 96.7); FireLens
+publishes the auditable hazard evidence beneath it. §4's histogram is the **predictive**
+panel; this is the **contrast** panel.
+Method notes: Spearman primary (the composite is percentile-ish), Pearson alongside;
+crosswalk integrity Σ RES_RATIO per residential tract = 1.000 (18 zero-residential tracts
+excluded). Coverage 1,693/1,801 ZCTAs (94%); the 108 unmatched are verified irreducible —
+**104 non-residential ZCTAs** (res_ratio=0 everywhere, no residents to weight under
+the residential choice) + **4 ZCTA-only codes absent from HUD** (F8); **0 recoverable**
+(no join bug). The gate asserts this root cause, not a fitted coverage threshold.
+Recovering the 104 via TOT_RATIO weighting was rejected — it would pad coverage by
+including non-residential places in a residential-risk validation.
+
+## 4b. Hazard×exposure decision matrix (Module 8b — the product feature)
+The two orthogonal dimensions of §4a become a 2D planner view. Each ZIP is classed by
+**FWI hazard** (recent-era level, spine metric) × **NRI WFIR_EALT consequence**, split at
+statewide medians (FWI 22.3 × EALT $73,365) into a categorical **quadrant** — never a
+blended risk score; the two axes stay visible:
+
+| quadrant | hazard × exposure | intervention | ZIPs |
+|---|---|---|---|
+| **priority** | high × high | manage fuel AND harden — the danger zone | 438 |
+| **monitor** | high × low | extreme weather, nobody there (Death Valley) | 408 |
+| **harden** | low × high | dense built value, moderate weather | 408 |
+| **low_priority** | low × low | — | 439 |
+
+**The product argument.** FEMA's `WFIR_RISKS` blends hazard + exposure + vulnerability into
+ONE sealed number, so two ZIPs with opposite drivers — one *dangerous-but-empty*, one
+*safe-but-dense* — can score identically, and a planner can't tell which lever to pull.
+FireLens **decomposes** it: the two axes show *why* a ZIP ranks where it does, so
+mitigation maps to the right intervention — fuel/weather management for the hazard axis,
+structure-hardening/defensible-space for the exposure axis. The **priority quadrant**
+(high on BOTH) is an output **neither layer produces alone**: FWI is blind to who's there,
+NRI's composite hides the hazard component. That intersection is the actionable product.
+**One-liner:** *"FEMA gives you the score; FireLens gives you the two axes underneath it —
+so you know whether to manage the fuel or harden the homes."*
+
+**Honesty guardrails.** Framed as two **complementary dimensions**, NOT a validated
+relationship. The matrix earns its place by being **useful** — each quadrant maps to a
+distinct intervention — not by any statistic. The near-zero hazard/exposure correlation is
+a **methodological footnote** ("expected — the axes are orthogonal by construction"), never
+cited as evidence FOR the 2D view. Coverage carried from §4a: 1,693/1,801 ZCTAs (94%; 104
+non-residential + 4 F8). Surfaced via get_validation_section / methodology as a capability,
+never a served risk column.
+**Known limitation (documented, not hidden):** the hazard axis is recent-era *mean* FWI,
+which understates the **tail** — Santa Rosa (Tubbs 2017) lands in `harden`, not `priority`,
+because its danger is in 97th-percentile ignition days, not its mean. A tail/extreme hazard
+axis (`dry_wind_days`, high-percentile-day count) would re-sort it and is the natural
+refinement. Pacific Palisades correctly lands in `priority` (high on both — the Jan 2025
+catastrophe confirms it).
 
 ## 4.5 Served metric set & ZIP-level aggregation
 The **v1 served set**, used verbatim by pipeline, tools, and UI:
@@ -716,6 +814,18 @@ CREATE TABLE fuel_context (zip VARCHAR PRIMARY KEY, burnable_frac DOUBLE,
 - FireLens is not a catastrophe model and provides no insurance, legal, or
   transaction advice. Weather data: Open-Meteo / Copernicus C3S & CEMS
   (CC-BY 4.0); fire records: USDA FS, CAL FIRE, NASA (public domain).
+- **Open-Meteo free tier is non-commercial** (doctrine #6): the hackathon demo is
+  compliant, but any productization requires the paid Open-Meteo API or a
+  self-hosted instance (roadmap). Its budget is weighted by data volume
+  (years × variables × locations) and is enforced in code by the dailies bulk
+  path's governor (prep/04_fetch_dailies.py). **Friday's live forecast calls share
+  the same daily budget** (doctrine #7) and run their own mini-governor (<100
+  units/day); the nightly bulk must leave ≥500 units of headroom past midnight UTC.
+- **Gust under-resolution, forward-looking rule** (doctrine #5): ERA5 daily
+  `wind_speed_10m_max` is sustained wind and under-resolves Diablo/Santa-Ana gusts
+  (Tubbs: 4.6 sustained vs 13.2 m/s gust). Any future wind-threshold metric change
+  must consult the fetched `gust` column — never lower the sustained threshold to
+  compensate.
 
 
 ---
@@ -902,7 +1012,7 @@ The full serving schema and join registry were executed in DuckDB with
 synthetic data (14/14 checks green: cell_id round-trip over 1,806 lattice
 cells, weights, weighted sparkline, LUT monotonicity + today-bracket, ISO
 week-53 merge, cross-year CDD window SQL, F2 violation detection, haversine
-fires-near, J12 fire_id resolution, metric enum, FIPS joins). Three schema
+fires-near, J12 fire_id resolution, served metric set, FIPS joins). Three schema
 defects were caught and are now canon in DATA.md (Part B) §5:
 - **D1 — fire/ZIP locations were missing.** get_fires_near had no
   coordinates to compute distance with. Fixed: fire_events gains lat/lon

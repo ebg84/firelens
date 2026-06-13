@@ -228,10 +228,15 @@ drifting: raise DECISION CHALLENGE instead of proceeding.
   registry. ERC served on event cards; DC and all other components are
   archive-only until promoted through the protocol. Behavior indices
   (BI/IC/SC) never surface in claims; composite/invented indices stay banned.
-- L15. Dailies come from Open-Meteo, not the CDS queue (decision locked
-  after first-contact friction). Live "today" uses the FORECAST endpoint
-  with past_days (the archive endpoint lags days — G12); wind requested
-  in m/s; America/Los_Angeles dates.
+- L15. **REVERSED & CLOSED 2026-06-12** (dailies source). Per-cell Open-Meteo,
+  chosen to dodge the CDS queue, was disproven by measurement (free tier is
+  volume-weighted at every tier; ~100 call-equivalents per decade-call; 732 cells
+  × 86 yr ≈ 45–130 h — infeasible). **Dailies now come from CDS
+  `derived-era5-single-levels-daily-statistics`** (areal, all cells per request,
+  grid-aligned to GEFF; three combos t_max/td_mean/precip, 1980–2026; prep/04b
+  acquisition + 04c ingest). Live "today" STILL uses the Open-Meteo FORECAST
+  endpoint with past_days (G12; m/s; America/Los_Angeles dates). dry_wind_days
+  pending the wind ladder. Evidence: DATA.md ERA5 section + AUDIT.md.
 - L16. Occurrence dedup F2: FPA-FOD statistics 1992–2020, FRAP 2021+;
   FRAP displays all eras. ≥300 ac statistics, ≥1,000 ac display. FRAP
   must contain PALISADES + EATON 2025 (NIFC is the named substitute).
