@@ -210,6 +210,7 @@ def api_methodology() -> dict:
     return {
         "framing": methodology.FRAMING,
         "metrics": methodology.METHODOLOGY,
+        "quadrants": {"basis": methodology.QUADRANT_BASIS, "categories": methodology.QUADRANTS},
         "contract": [
             {"metric": r[0], "state": r[1], "spatial_grain": r[2], "temporal_range": r[3],
              "temporal_granularity": r[4], "vintage": r[5]}

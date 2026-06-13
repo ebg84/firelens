@@ -160,6 +160,38 @@ function renderHeadline(d) {
   $("headline").innerHTML = html;
 }
 
+// Metric info tooltips — text pulled from /api/methodology (single source of truth, can't
+// drift from the Methods page). Graceful: no entry -> no icon.
+const methodology = {};
+let quadrants = {};  // {basis, categories:{priority,harden,monitor,low_priority}} from /api/methodology
+const BASIS_LABEL = { ingested: "Ingested (canonical index)", derived: "Derived by FireLens",
+  cited: "Cited (published)", constructed: "FireLens analytic" };
+const TREND_METH = { fwi: "fwi", season_length: "season_length", dc_pctile: "dc" };
+const CHART_METH = { fwi_mean: "fwi", season_len: "season_length", dc_max: "dc", extreme_days: "extreme_days" };
+
+async function loadMethodology() {
+  try {
+    const d = await (await fetch("/api/methodology")).json();
+    (d.metrics || []).forEach((m) => { methodology[m.key] = m; });
+    quadrants = d.quadrants || {};
+  } catch (e) { /* icons simply omit */ }
+}
+function infoIcon(key) {
+  const m = methodology[key];
+  if (!m) return "";
+  const basis = BASIS_LABEL[m.basis] || m.basis;
+  return `<span class="info" tabindex="0">&#9432;<span class="info-pop">${m.meaning}`
+    + `<span class="info-src">${basis} · ${m.source}</span>`
+    + `<a href="/methods">Methods ›</a></span></span>`;
+}
+function quadrantInfoIcon(key) {
+  const qd = quadrants.categories && quadrants.categories[key];
+  if (!qd) return "";
+  return `<span class="info" tabindex="0">&#9432;<span class="info-pop">${qd.meaning}`
+    + `<span class="info-src">${quadrants.basis || ""}</span>`
+    + `<a href="/methods">Methods ›</a></span></span>`;
+}
+
 function renderMatrix(m) {
   const el = $("panel-matrix");
   if (!m.available) {
@@ -169,11 +201,11 @@ function renderMatrix(m) {
   }
   const q = QUAD[m.quadrant];
   el.innerHTML = `
-    <h3>Hazard × Exposure</h3><div class="sub">FEMA NRI exposure × FWI hazard, split at statewide medians</div>
-    <span class="quad-badge" style="background:${q.color}">${q.label}</span>
-    <div class="axis"><span class="k">Hazard — mean FWI (recent era)</span>
+    <h3>Hazard × Exposure ${infoIcon("quadrant")}</h3><div class="sub">FEMA NRI exposure × FWI hazard, split at statewide medians</div>
+    <span class="quad-badge" style="background:${q.color}">${q.label}</span>${quadrantInfoIcon(m.quadrant)}
+    <div class="axis"><span class="k">Hazard — mean FWI (recent era) ${infoIcon("fwi")}</span>
       <span class="v"><strong class="level-${m.hazard.level}">${m.hazard.level}</strong> · ${fmtNum(m.hazard.fwi_level,1)} <span class="unit">(median ${fmtNum(m.hazard.median,1)})</span></span></div>
-    <div class="axis"><span class="k">Exposure — expected annual building loss</span>
+    <div class="axis"><span class="k">Exposure — expected annual building loss ${infoIcon("nri_ealt")}</span>
       <span class="v"><strong class="level-${m.exposure.level}">${m.exposure.level}</strong> · ${fmtMoney(m.exposure.wfir_ealt)} <span class="unit">(median ${fmtMoney(m.exposure.median)})</span></span></div>
     <p class="sub" style="margin-top:12px">${m.note}</p>`;
 }
@@ -186,7 +218,7 @@ function renderTrends(t, zip) {
     const v = t.metrics[key];
     const dir = v.pct_change > 0.005 ? "up" : v.pct_change < -0.005 ? "down" : "flat";
     rows += `<div class="metric-row">
-      <span class="name">${meta.label}<br/><span class="unit">${meta.note}</span></span>
+      <span class="name">${meta.label} ${infoIcon(TREND_METH[key])}<br/><span class="unit">${meta.note}</span></span>
       <span class="vals">${fmtNum(v.baseline,meta.decimals)} → ${fmtNum(v.recent,meta.decimals)}</span>
       <span class="delta ${dir}">${fmtPctChange(v.pct_change)}</span></div>`;
   }
@@ -207,7 +239,7 @@ function renderFuel(f) {
   const order = Object.entries(comp).sort((a,b)=> (b[1]||0)-(a[1]||0)).filter(([,v])=>v>0.001);
   let rows = order.map(([k,v]) =>
     `<div class="comp-row"><span>${k.replace(/_/g," ")}</span><span class="cv">${(v*100).toFixed(0)}%</span></div>`).join("");
-  el.innerHTML = `<h3>Fuel substrate</h3><div class="sub">LANDFIRE FBFM40 — what's here to burn</div>
+  el.innerHTML = `<h3>Fuel substrate ${infoIcon("fuel")}</h3><div class="sub">LANDFIRE FBFM40 — what's here to burn</div>
     <div class="big">${pct.toFixed(0)}%<span class="unit"> burnable</span></div>
     <div class="bar"><span style="width:${pct.toFixed(0)}%"></span></div>
     <p class="sub">Dominant: <strong>${(f.dominant_class||"").replace(/_/g," ")}</strong></p>
@@ -221,7 +253,7 @@ function renderNri(n) {
       <p class="na-note">Not in the NRI residential set — exposure unavailable ("—"), distinct from a real zero.</p>`;
     return;
   }
-  el.innerHTML = `<h3>Built exposure (FEMA NRI)</h3><div class="sub">2025 snapshot · ${n.n_tracts} tract(s)</div>
+  el.innerHTML = `<h3>Built exposure (FEMA NRI) ${infoIcon("nri_ealt")}</h3><div class="sub">2025 snapshot · ${n.n_tracts} tract(s)</div>
     <div class="big">${fmtMoney(n.wfir_ealt)}<span class="unit"> expected annual building loss</span></div>
     <div class="axis"><span class="k">Wildfire risk index</span><span class="v">${fmtNum(n.wfir_risks,1)} <span class="unit">/ 100</span></span></div>
     <div class="axis"><span class="k">Annualized burn frequency</span><span class="v">${n.wfir_afreq==null?"—":(n.wfir_afreq*100).toFixed(2)+"% /yr"}</span></div>`;
@@ -320,7 +352,7 @@ function drawSeries(metric) {
   const cty = countyName(seriesData.county_fips);
   $("series-caption").innerHTML =
     `<strong>ZIP ${seriesData.zip}${cty ? ` · ${cty} County` : ""}</strong> — `
-    + `<strong>${meta.label}</strong>: ${meta.gloss}. ${seriesData.source}.`;
+    + `<strong>${meta.label}</strong> ${infoIcon(CHART_METH[metric])}: ${meta.gloss}. ${seriesData.source}.`;
 
   // Custom HTML tooltip, re-bound on every render (metric switch rebuilds the SVG).
   const svgEl = host.querySelector("svg");
@@ -387,5 +419,6 @@ document.addEventListener("DOMContentLoaded", () => {
     if (q) { askAgent(currentZip, q); $("ask-q").value = ""; }
   });
   const param = new URLSearchParams(location.search).get("zip");
-  assess(param && /^\d{5}$/.test(param) ? param : "95404"); // ?zip= from the map, else a real default
+  // load methodology first so the metric ⓘ tooltips are populated on the first render
+  loadMethodology().then(() => assess(param && /^\d{5}$/.test(param) ? param : "95404"));
 });

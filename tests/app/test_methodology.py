@@ -53,6 +53,13 @@ def test_quadrant_is_ours(client):
     assert "not an external standard" in m["derivation"].lower()
 
 
+def test_quadrant_categories_present(client):
+    q = client.get("/api/methodology").json()["quadrants"]
+    assert set(q["categories"]) == {"priority", "harden", "monitor", "low_priority"}
+    assert all("meaning" in c and "label" in c for c in q["categories"].values())
+    assert "Fire Weather Index" in q["basis"] and "FEMA" in q["basis"]  # tied to construction, not invented
+
+
 def test_methods_page_served(client):
     assert client.get("/methods").status_code == 200
     assert client.get("/static/methods.js").status_code == 200

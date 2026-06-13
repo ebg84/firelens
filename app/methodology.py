@@ -97,3 +97,33 @@ METHODOLOGY = [
         "basis": "constructed",
     },
 ]
+
+# Plain-language meaning of each quadrant category FOR A RESIDENT (single source for the
+# decision-tool tooltips + the Methods page). Tied to the quadrant's construction below.
+QUADRANT_BASIS = (
+    "FireLens construction: recent-era mean Fire Weather Index (hazard) × FEMA National Risk "
+    "Index expected annual loss (exposure), each split at the statewide median. Not an external standard."
+)
+QUADRANTS = {
+    "priority": {
+        "label": "Priority",
+        "meaning": "Dangerous fire weather AND a lot of built value at risk — high on both axes. "
+        "Managing fuels and making homes fire-resistant both matter here.",
+    },
+    "harden": {
+        "label": "Harden",
+        "meaning": "Significant property at risk while the fire weather runs below the statewide "
+        "median — the stakes are about what's here, not how often it burns. Focus on making homes "
+        "fire-resistant: clearing brush, ember-proofing vents.",
+    },
+    "monitor": {
+        "label": "Monitor",
+        "meaning": "Dangerous fire weather but relatively little built exposure — stay aware during "
+        "fire season; fewer structures are at stake than in high-exposure areas.",
+    },
+    "low_priority": {
+        "label": "Low priority",
+        "meaning": "Below the statewide median on both fire weather and built exposure — lower "
+        "relative concern, though no place is risk-free.",
+    },
+}
