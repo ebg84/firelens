@@ -142,6 +142,15 @@ with zero code change.
     These three (structures_destroyed, erc_pctile, robust) are the full all-NULL set in the
     committed serving layer — a NULL-provenance gate (c-a) should pin all three at 100% NULL so
     a future fabricating fill flips RED.
+  - **(c-e) FUEL `dominant_class` ON NO-RASTER ZIPs** (same honesty class — a label asserting a
+    measurement we don't have; **fix next session, do NOT fabricate**): the **22 no-raster ZIPs**
+    (`total_px=0`) carry `dominant_class="non_burnable"` (fuel.py's `if burn else "non_burnable"`),
+    but with zero pixels we have NO fuel data — it should be **NULL / "no_data"**. DISTINCT from
+    the **12 covered-but-nonburnable** ZIPs (`total_px>0, burnable_frac=0`), which correctly stay
+    `"non_burnable"` (a real measurement). Fix in `prep/fuel.py` (split the `else` on `total`:
+    `"no_data" if total==0 else "non_burnable" if not burn else max(...)`), re-export fuel,
+    re-promote, rebuild DB; the diff-gate will then expect the new labels. Composition for these
+    22 is already correctly NULL (c. `3743a4e`); only `dominant_class` remains mislabeled.
 - **(d) DONE — DuckDB serving DB as a GENERATED artifact** (`prep/build_duckdb.py`,
   `tests/prep/test_duckdb_build.py`). Read-only, rebuilt from committed `data/` only (the three
   additive layers were promoted in for HEAD-reproducibility); `.duckdb` gitignored, builder
