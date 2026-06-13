@@ -110,9 +110,27 @@ with zero code change.
 - **(a) DONE** — accept + document the 92 orphan cells (full-CA-coverage framing; not trimmed).
 - **(b) DONE** — commit the validated stack (8c + validation + framework + 8a/8b) as honest
   timestamped commits. **This was the durable lock (`65e7e8a`).**
-- **(c) NEXT — meta-validation / mutation testing.** Prove the gates have TEETH (Layer-1
-  objective): inject a mutation (e.g. break a join key, shift a date, swap a CRS) and confirm
-  the matching gate goes RED. Spot-verify at least one mutation yourself.
+- **(c) DONE — meta-validation / mutation testing** (`prep/meta_validate.py`,
+  `docs/META_VALIDATION.md`). 10 gates proven to have TEETH (negative control green); the
+  suite validates FORM + resolution honesty, NOT arithmetic truth (no independent value
+  oracle). Three decisions surfaced and HALTED for the developer — DO NOT auto-resolve:
+  - **(c-a) NULL-PROVENANCE GATE.** No committed check rejects a NULL being silently replaced
+    with a plausible in-range value (mutation M4 stayed green). Add a gate that asserts
+    legitimately-NULL columns **stay NULL and are never fabricated** (pin the null COUNT so a
+    future "fill" flips RED; assert a column is fully-sourced or manifest-`pending`, never
+    partially hand-filled). Touches write-locked `tests/` → needs explicit approval.
+  - **(c-b) `structures_destroyed` RESOLUTION.** Column is **100% NULL (3205/3205)**, yet the
+    canonical claim + acceptance criterion want "5,636 structures." Resolve ONE of two ways:
+    source it as a **cited, labeled constant** (provenance-tagged, clearly not from the spine),
+    or **drop the structures claim** from the event card + acceptance criterion. **NEVER
+    back-fill it as computed/served data** — that fabricates a number the auditability thesis
+    forbids.
+  - **(c-c) VALUE-ORACLE SCOPE.** The deepest soft spot: a shifted grid or wrong-but-in-range
+    percentile passes every gate green. Extend the hand-oracle pattern (Tubbs percentile
+    recomputed from the raw spine; NRI denominator oracle) to **2–3 more load-bearing numbers**
+    (e.g. a reference-ZIP fwi_mean trend, a known-(lat,lon)→GEFF-cell ground-truth anchor). If
+    not closed before the event, **record it as a KNOWN LIMITATION** in the brief — do not
+    leave it implied-covered.
 - **(d) DuckDB as a GENERATED artifact** from the served layer — gitignore the `.duckdb`,
   commit the *builder*, diff-validate the built DB vs the source parquets (never a 2nd source
   of truth).
