@@ -276,6 +276,13 @@ async function doSearch(q) {
     const q = document.getElementById("ex-q").value.trim();
     if (q) doSearch(q);
   });
+  // Fade the ZIP polygon layer (down to 0) to reveal the satellite basemap + fire heatmap.
+  // setStyle leaves fillColor untouched, so viridis/quadrant colors + view switches persist.
+  document.getElementById("zip-opacity").addEventListener("input", (e) => {
+    if (!geoLayer) return;
+    const o = e.target.value / 100;
+    geoLayer.setStyle({ fillOpacity: o, opacity: o });
+  });
   document.getElementById("ex-panel").innerHTML = `<div class="hint">Loading the map…</div>`;
   try {
     const r = await fetch("/api/geo/zcta");
