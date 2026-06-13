@@ -158,3 +158,155 @@ def stream_events(zip_code: str, question: str | None = None):
     except (anthropic.APITimeoutError, anthropic.APIConnectionError, anthropic.APIStatusError):
         yield _sse("delta", {"text": FALLBACK_ANSWER})
         yield _sse("done", {"model": None, "degraded": True})
+
+
+# --- 3b: bounded agentic layer (Opus 4.8, capped tools, max 2 tool rounds) ---
+
+AGENT_MAX_ROUNDS = 2
+AGENT_MAX_TOKENS = 600
+# The SYNC (non-stream) agentic path fails FAST to the Sonnet fallback — a hung Opus call
+# must not stall a demo (the old 60s x 2-retry x rounds = ~197s). The STREAMING product path
+# (agent_stream) keeps the normal client, since streaming receives progressively and is robust.
+AGENT_SYNC_TIMEOUT = 20.0
+AGENT_SYNC_RETRIES = 0
+
+TOOLS = [
+    {
+        "name": "get_place",
+        "description": "Grounded decision data for a California ZIP: the hazard×exposure "
+        "quadrant, era trends (fwi, season_length, dc_pctile; baseline 1980-2000 vs recent "
+        "2010-present), fuel composition, and FEMA NRI built exposure. A null field means NO "
+        "DATA — never invent a value for it.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"zip": {"type": "string", "description": "5-digit California ZIP"}},
+            "required": ["zip"],
+        },
+    },
+    {
+        "name": "get_fires_near",
+        "description": "Documented fires near a California ZIP (FPA-FOD 1992-2020 + FRAP 2021+), "
+        "largest first, each with ignition-day FWI percentile, acreage, cause, distance. Use for "
+        "'has it burned before'. An empty list means none on record within the radius.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "zip": {"type": "string", "description": "5-digit California ZIP"},
+                "radius_km": {"type": "number", "description": "search radius in km (default 50)"},
+            },
+            "required": ["zip"],
+        },
+    },
+]
+
+AGENT_TOOL_NOTE = (
+    "\n\n## Your tools (bounded)\nYou have exactly two tools: get_place(zip) and "
+    "get_fires_near(zip, radius_km). Call them to ground every figure; use at most two rounds "
+    "of tool calls, then answer. Cite only what they return — null fields are 'no data'. Scope: "
+    "is-my-area-at-risk, why/what-drives-it, has-it-burned-before, compare-nearby."
+)
+
+
+def _dispatch_tool(name: str, inp: dict) -> dict:
+    """Run a capped tool against the real query functions. Input-validated; never free SQL."""
+    zip_code = str(inp.get("zip", "")).strip()
+    if not (len(zip_code) == 5 and zip_code.isdigit()):
+        return {"error": f"invalid zip {zip_code!r}; must be 5 digits"}
+    if name == "get_place":
+        return queries.place_payload(zip_code) or {
+            "error": f"ZIP {zip_code} not in the California serving layer"
+        }
+    if name == "get_fires_near":
+        radius = float(inp.get("radius_km") or 50)
+        return {"zip": zip_code, "fires": queries.nearby_fires(zip_code, radius_km=radius)}
+    return {"error": f"unknown tool {name}"}
+
+
+def _agent_messages(question: str, focus_zip: str | None) -> list:
+    prefix = f"(Focus ZIP: {focus_zip}.) " if focus_zip else ""
+    return [{"role": "user", "content": prefix + question}]
+
+
+def agentic(question: str, focus_zip: str | None = None) -> dict:
+    """Non-streaming bounded agentic loop (tests + fallback shape).
+    Returns {answer, model, tool_calls, degraded}."""
+    client = _get_client().with_options(timeout=AGENT_SYNC_TIMEOUT, max_retries=AGENT_SYNC_RETRIES)
+    system = _system_prompt() + AGENT_TOOL_NOTE
+    messages = _agent_messages(question, focus_zip)
+    tool_calls: list = []
+    try:
+        for _round in range(AGENT_MAX_ROUNDS):
+            resp = client.messages.create(
+                model=AGENT_MODEL, max_tokens=AGENT_MAX_TOKENS, system=system,
+                tools=TOOLS, messages=messages,
+            )
+            messages.append({"role": "assistant", "content": resp.content})
+            if resp.stop_reason != "tool_use":
+                text = "".join(b.text for b in resp.content if b.type == "text").strip()
+                return {"answer": text, "model": AGENT_MODEL, "tool_calls": tool_calls, "degraded": False}
+            results = []
+            for b in resp.content:
+                if b.type == "tool_use":
+                    tool_calls.append({"name": b.name, "input": b.input})
+                    out = _dispatch_tool(b.name, b.input)
+                    results.append({"type": "tool_result", "tool_use_id": b.id,
+                                    "content": json.dumps(out, default=str)})
+            messages.append({"role": "user", "content": results})
+        # rounds exhausted still wanting tools -> force a final answer with no tools
+        resp = client.messages.create(
+            model=AGENT_MODEL, max_tokens=AGENT_MAX_TOKENS, system=system, messages=messages,
+        )
+        text = "".join(b.text for b in resp.content if b.type == "text").strip()
+        return {"answer": text, "model": AGENT_MODEL, "tool_calls": tool_calls, "degraded": False}
+    except (anthropic.APITimeoutError, anthropic.APIConnectionError, anthropic.APIStatusError):
+        if focus_zip:  # graceful degradation to the fast Sonnet interpreter
+            fb = interpret(focus_zip, question)
+            if fb:
+                return {"answer": fb["answer"], "model": fb["model"],
+                        "tool_calls": tool_calls, "degraded": True}
+        return {"answer": FALLBACK_ANSWER, "model": None, "tool_calls": tool_calls, "degraded": True}
+
+
+def agent_stream(question: str, focus_zip: str | None = None):
+    """SSE: emit a 'tool' event per call (investigation made visible), stream the final
+    answer's deltas. Falls back to the Sonnet interpreter if the loop errors."""
+    client = _get_client()
+    system = _system_prompt() + AGENT_TOOL_NOTE
+    messages = _agent_messages(question, focus_zip)
+    yield _sse("meta", {"focus_zip": focus_zip, "model": AGENT_MODEL})
+    try:
+        for _round in range(AGENT_MAX_ROUNDS):
+            with client.messages.stream(
+                model=AGENT_MODEL, max_tokens=AGENT_MAX_TOKENS, system=system,
+                tools=TOOLS, messages=messages,
+            ) as stream:
+                for text in stream.text_stream:
+                    yield _sse("delta", {"text": text})
+                final = stream.get_final_message()
+            messages.append({"role": "assistant", "content": final.content})
+            if final.stop_reason != "tool_use":
+                yield _sse("done", {"model": AGENT_MODEL, "degraded": False})
+                return
+            results = []
+            for b in final.content:
+                if b.type == "tool_use":
+                    yield _sse("tool", {"name": b.name, "input": b.input})
+                    out = _dispatch_tool(b.name, b.input)
+                    results.append({"type": "tool_result", "tool_use_id": b.id,
+                                    "content": json.dumps(out, default=str)})
+            messages.append({"role": "user", "content": results})
+        with client.messages.stream(  # forced final answer, no tools
+            model=AGENT_MODEL, max_tokens=AGENT_MAX_TOKENS, system=system, messages=messages,
+        ) as stream:
+            for text in stream.text_stream:
+                yield _sse("delta", {"text": text})
+        yield _sse("done", {"model": AGENT_MODEL, "degraded": False})
+    except (anthropic.APITimeoutError, anthropic.APIConnectionError, anthropic.APIStatusError):
+        if focus_zip:
+            fb = interpret(focus_zip, question)
+            if fb:
+                yield _sse("delta", {"text": fb["answer"]})
+                yield _sse("done", {"model": fb["model"], "degraded": True})
+                return
+        yield _sse("delta", {"text": FALLBACK_ANSWER})
+        yield _sse("done", {"model": None, "degraded": True})

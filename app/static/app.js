@@ -226,6 +226,36 @@ function renderNri(n) {
     <div class="axis"><span class="k">Annualized burn frequency</span><span class="v">${n.wfir_afreq==null?"—":(n.wfir_afreq*100).toFixed(2)+"% /yr"}</span></div>`;
 }
 
+// Free-form questions -> the bounded agentic layer (Opus + get_place/get_fires_near),
+// with tool calls shown (investigation made visible). Auto-load stays on the interpreter.
+function askAgent(zip, question) {
+  $("ai-answer").innerHTML = `<span class="loading">FireLens is investigating…</span>`;
+  $("ai-model").textContent = "";
+  let acc = "", tools = [];
+  const renderAll = () => {
+    const tline = tools.length
+      ? `<div class="ai-tools">🔎 queried ${tools.map((t) => `${t.name}(${t.input.zip || ""})`).join(" · ")}</div>`
+      : "";
+    $("ai-answer").innerHTML = tline + (acc ? mdToHtml(acc) : `<span class="loading">…</span>`);
+  };
+  let url = `/api/agent/stream?q=${encodeURIComponent(question)}`;
+  if (zip) url += `&zip=${encodeURIComponent(zip)}`;
+  const es = new EventSource(url);
+  es.addEventListener("tool", (e) => { tools.push(JSON.parse(e.data)); renderAll(); });
+  es.addEventListener("delta", (e) => { acc += JSON.parse(e.data).text; renderAll(); });
+  es.addEventListener("done", (e) => {
+    const d = JSON.parse(e.data);
+    $("ai-model").textContent = d.model ? "via " + d.model + (d.degraded ? " · fallback" : "")
+      : "data live · narrative unavailable";
+    es.close();
+  });
+  es.addEventListener("error", () => {
+    if (!acc) $("ai-answer").innerHTML =
+      `<span class="loading">Investigation unavailable — the data panels below are live.</span>`;
+    es.close();
+  });
+}
+
 // --- wiring ---
 document.addEventListener("DOMContentLoaded", () => {
   $("zip-form").addEventListener("submit", (e) => { e.preventDefault(); doSearch($("zip").value); });
@@ -234,7 +264,7 @@ document.addEventListener("DOMContentLoaded", () => {
   $("ask-form").addEventListener("submit", (e) => {
     e.preventDefault();
     const q = $("ask-q").value.trim();
-    if (q && currentZip) { interpret(currentZip, q, false); $("ask-q").value = ""; }
+    if (q) { askAgent(currentZip, q); $("ask-q").value = ""; }
   });
   const param = new URLSearchParams(location.search).get("zip");
   assess(param && /^\d{5}$/.test(param) ? param : "95404"); // ?zip= from the map, else a real default

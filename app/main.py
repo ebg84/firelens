@@ -145,6 +145,22 @@ def ask(req: AskRequest) -> dict:
     return result
 
 
+@app.get("/api/agent/stream")
+def agent_stream_ep(q: str, zip: str | None = None) -> StreamingResponse:
+    """Bounded agentic layer (SSE): Opus 4.8 with capped tools (get_place + get_fires_near,
+    max 2 rounds) investigates a free-form question, emitting a tool event per call. Falls
+    back to the Sonnet interpreter on error."""
+    if zip is not None and not _valid_zip(zip):
+        raise HTTPException(status_code=422, detail=f"ZIP must be 5 digits, got {zip!r}")
+    from . import agent
+
+    return StreamingResponse(
+        agent.agent_stream(q, zip),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
 @app.get("/api/ask/stream")
 def ask_stream(zip: str, question: str | None = None) -> StreamingResponse:
     """Streaming interpretation (SSE): progressive text deltas — robust to slow/long

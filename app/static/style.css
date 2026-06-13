@@ -70,6 +70,7 @@ main { max-width: 1080px; margin: 0 auto; padding: 28px; }
 .ask-mini button { padding: 9px 18px; border: 0; border-radius: 7px; background: var(--panel-2);
   color: var(--ink); border: 1px solid var(--line); cursor: pointer; }
 .ask-mini button:hover { border-color: var(--accent); color: var(--accent); }
+.ai-tools { color: var(--accent); font-size: 12px; margin-bottom: 8px; opacity: .85; }
 .ai-note { color: var(--na); font-size: 11.5px; margin-top: 10px; }
 .ai-note code { color: var(--muted); }
 .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
