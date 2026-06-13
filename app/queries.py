@@ -161,6 +161,42 @@ def search(q: str) -> dict:
     }
 
 
+def cell_series(zip_code: str) -> dict | None:
+    """The full-coverage annual fire-weather record (1940-2026) for the grid cell a ZIP
+    sits in (its max-weight cell). SPINE-ONLY metrics (fwi_mean, extreme_days, season_len) —
+    never fire events / NRI / fuel / pending layers. None if the ZIP isn't served.
+    """
+    cell = db.query_one(
+        "select c.cell_id, c.lat, c.lon, m.weight "
+        "from zip_cell_map m join cell_meta c on m.cell_id = c.cell_id "
+        "where m.zip = ? order by m.weight desc limit 1",
+        [zip_code],
+    )
+    if cell is None:
+        return None
+    cell_id, lat, lon, weight = cell
+    rows = db.query(
+        "select year, fwi_mean, extreme_days, season_len, dc_max from cell_annual "
+        "where cell_id = ? order by year",
+        [cell_id],
+    )
+    return {
+        "zip": zip_code,
+        "cell_id": cell_id,
+        "lat": lat,
+        "lon": lon,
+        "weight": weight,
+        "metric": "fwi_mean",
+        "metrics": ["fwi_mean", "season_len", "dc_max", "extreme_days"],  # all full-coverage spine
+        "source": "ERA5-derived fire-weather record, 1940-2026, the grid cell this ZIP sits in",
+        "points": [
+            {"year": r[0], "fwi_mean": r[1], "extreme_days": r[2],
+             "season_len": r[3], "dc_max": r[4]}
+            for r in rows
+        ],
+    }
+
+
 def nearby_fires(zip_code: str, radius_km: float = 50.0, limit: int = 6) -> list[dict]:
     """Documented fires near a ZIP (haversine on the ZIP centroid), largest first.
 

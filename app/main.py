@@ -185,6 +185,20 @@ def search(q: str) -> dict:
     return queries.search(q)
 
 
+@app.get("/api/series/{zip_code}")
+def series(zip_code: str) -> dict:
+    """The full 1940-2026 annual fire-weather record for the grid cell a ZIP sits in —
+    the 'history, not forecast' time series. Spine-only (fwi_mean/extreme_days/season_len)."""
+    if not _valid_zip(zip_code):
+        raise HTTPException(status_code=422, detail=f"ZIP must be 5 digits, got {zip_code!r}")
+    s = queries.cell_series(zip_code)
+    if s is None:
+        raise HTTPException(
+            status_code=404, detail=f"ZIP {zip_code} not in the California serving layer"
+        )
+    return s
+
+
 # --- map data (the /explore in-tandem evidence surface) ---
 
 _geo_cache: dict | None = None

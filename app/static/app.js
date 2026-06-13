@@ -99,6 +99,7 @@ function render(d) {
   renderTrends(d.trends, d.zip);
   renderFuel(d.fuel);
   renderNri(d.nri);
+  renderSeries(d.zip);
   // The interpretation engine: auto-run once per ZIP (cached), follow-ups via the box.
   if (aiCache[d.zip]) showAnswer(aiCache[d.zip].answer, aiCache[d.zip].model);
   else interpret(d.zip, null, true);
@@ -224,6 +225,67 @@ function renderNri(n) {
     <div class="big">${fmtMoney(n.wfir_ealt)}<span class="unit"> expected annual building loss</span></div>
     <div class="axis"><span class="k">Wildfire risk index</span><span class="v">${fmtNum(n.wfir_risks,1)} <span class="unit">/ 100</span></span></div>
     <div class="axis"><span class="k">Annualized burn frequency</span><span class="v">${n.wfir_afreq==null?"—":(n.wfir_afreq*100).toFixed(2)+"% /yr"}</span></div>`;
+}
+
+// --- 85-year time-series (history, not forecast): full-coverage spine metrics, 1940-2026 ---
+const SERIES_METRICS = {
+  fwi_mean:     { label: "Fire Weather Index", gloss: "how dangerous fire-weather conditions are — heat, wind, and dryness combined", yLabel: "FWI (annual mean)", decimals: 1 },
+  extreme_days: { label: "Extreme fire-weather days", gloss: "days per year of extreme fire-weather conditions", yLabel: "days / year", decimals: 0 },
+  season_len:   { label: "Fire-season length", gloss: "how many days a year the weather can carry fire", yLabel: "days / year", decimals: 0 },
+  dc_max:       { label: "Drought Code", gloss: "how dry the deep soil is, which drives how intensely fire burns", yLabel: "Drought Code (annual max)", decimals: 0 },
+};
+const SERIES_ORDER = ["fwi_mean", "extreme_days", "season_len", "dc_max"];
+let seriesData = null, seriesMetric = "fwi_mean";
+
+async function renderSeries(zip) {
+  const host = $("series-chart");
+  host.innerHTML = `<span class="loading">Loading the 1940–2026 record…</span>`;
+  $("series-caption").textContent = "";
+  try {
+    const r = await fetch("/api/series/" + zip);
+    if (!r.ok) { host.innerHTML = `<span class="na-note">No record for ${zip}.</span>`; return; }
+    seriesData = await r.json();
+  } catch (e) { host.innerHTML = `<span class="na-note">Network error.</span>`; return; }
+  seriesMetric = "fwi_mean";
+  buildSeriesTabs();
+  drawSeries(seriesMetric);
+}
+
+function buildSeriesTabs() {
+  const tabs = $("series-tabs");
+  tabs.innerHTML = SERIES_ORDER.map((m) =>
+    `<button data-m="${m}" class="${m === seriesMetric ? "active" : ""}">${SERIES_METRICS[m].label}</button>`).join("");
+  tabs.querySelectorAll("button").forEach((b) =>
+    b.addEventListener("click", () => { seriesMetric = b.dataset.m; buildSeriesTabs(); drawSeries(seriesMetric); }));
+}
+
+function drawSeries(metric) {
+  if (!seriesData) return;
+  const meta = SERIES_METRICS[metric], pts = seriesData.points;
+  const W = 720, H = 240, padL = 50, padR = 14, padT = 20, padB = 28;
+  const y0 = pts[0].year, y1 = pts[pts.length - 1].year;
+  const vals = pts.map((p) => p[metric]);
+  let lo = Math.min(...vals), hi = Math.max(...vals);
+  if (lo === hi) hi = lo + 1;
+  const X = (yr) => padL + (yr - y0) / (y1 - y0) * (W - padL - padR);
+  const Y = (v) => H - padB - (v - lo) / (hi - lo) * (H - padT - padB);
+  const path = pts.map((p, i) => `${i ? "L" : "M"}${X(p.year).toFixed(1)},${Y(p[metric]).toFixed(1)}`).join(" ");
+  const bx1 = X(1980), bx2 = X(2000);
+  let svg = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" class="chart" role="img" aria-label="${meta.label} 1940 to 2026">`;
+  svg += `<rect x="${bx1.toFixed(1)}" y="${padT}" width="${(bx2 - bx1).toFixed(1)}" height="${H - padT - padB}" class="band"/>`;
+  svg += `<text x="${((bx1 + bx2) / 2).toFixed(1)}" y="${padT - 6}" class="band-lbl" text-anchor="middle">1980–2000 baseline</text>`;
+  [lo, (lo + hi) / 2, hi].forEach((v) => {
+    const yy = Y(v);
+    svg += `<line x1="${padL}" y1="${yy.toFixed(1)}" x2="${W - padR}" y2="${yy.toFixed(1)}" class="grid"/>`;
+    svg += `<text x="${padL - 6}" y="${(yy + 3).toFixed(1)}" class="tick" text-anchor="end">${v.toFixed(meta.decimals)}</text>`;
+  });
+  [1940, 1960, 1980, 2000, 2020].filter((t) => t >= y0 && t <= y1).forEach((t) => {
+    svg += `<text x="${X(t).toFixed(1)}" y="${H - padB + 16}" class="tick" text-anchor="middle">${t}</text>`;
+  });
+  svg += `<text x="4" y="${padT - 6}" class="axis-lbl">${meta.yLabel}</text>`;
+  svg += `<path d="${path}" class="line"/></svg>`;
+  $("series-chart").innerHTML = svg;
+  $("series-caption").innerHTML = `<strong>${meta.label}</strong> — ${meta.gloss}. ${seriesData.source}.`;
 }
 
 // Free-form questions -> the bounded agentic layer (Opus + get_place/get_fires_near),
