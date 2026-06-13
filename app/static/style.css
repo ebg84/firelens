@@ -110,8 +110,14 @@ main { max-width: 1080px; margin: 0 auto; padding: 28px; }
   border-radius: 6px; padding: 4px 10px; font-size: 12px; cursor: pointer; }
 .series-tabs button:hover { border-color: var(--accent); color: var(--ink); }
 .series-tabs button.active { background: var(--accent); color: #1a0f08; border-color: var(--accent); font-weight: 600; }
-#series-chart { margin: 12px 0 6px; }
+#series-chart { margin: 12px 0 6px; position: relative; }
 #series-chart .chart { width: 100%; height: auto; display: block; }
+#series-chart .hitband { cursor: crosshair; }
+.chart-tip { position: absolute; pointer-events: none; display: none; z-index: 5;
+  background: #0b0f12; border: 1px solid var(--line); color: var(--ink);
+  font-size: 12px; padding: 4px 9px; border-radius: 5px; white-space: nowrap;
+  transform: translate(-50%, -135%); }
+.chart-tip strong { color: var(--accent); }
 .chart .band { fill: rgba(255, 122, 69, .12); }
 .chart .band-lbl { fill: var(--muted); font-size: 9px; }
 .chart .grid { stroke: var(--line); stroke-width: 1; }

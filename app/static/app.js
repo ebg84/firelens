@@ -298,17 +298,52 @@ function drawSeries(metric) {
     const c = sviridis((norm(a[metric]) + norm(b[metric])) / 2);
     svg += `<line x1="${X(a.year).toFixed(1)}" y1="${Y(a[metric]).toFixed(1)}" x2="${X(b.year).toFixed(1)}" y2="${Y(b[metric]).toFixed(1)}" stroke="${c}" stroke-width="2"/>`;
   }
-  // a point per year, colored by value, each with a native hover tooltip: year + value
+  // a point per year, colored by value
   pts.forEach((p) => {
-    svg += `<circle cx="${X(p.year).toFixed(1)}" cy="${Y(p[metric]).toFixed(1)}" r="2.6" fill="${sviridis(norm(p[metric]))}" stroke="#0b0f12" stroke-width="0.5">`
-      + `<title>${p.year} · ${meta.label} ${fmt(p[metric])}${meta.unit}</title></circle>`;
+    svg += `<circle cx="${X(p.year).toFixed(1)}" cy="${Y(p[metric]).toFixed(1)}" r="2.4" fill="${sviridis(norm(p[metric]))}" stroke="#0b0f12" stroke-width="0.5"/>`;
+  });
+  // hover affordances (hidden until hover): dashed vertical guide + highlight ring
+  svg += `<line id="series-guide" y1="${padT}" y2="${H - padB}" stroke="#9fb0bd" stroke-width="1" stroke-dasharray="3,3" style="display:none"/>`;
+  svg += `<circle id="series-hl" r="4.5" fill="none" stroke="#fff" stroke-width="1.5" style="display:none"/>`;
+  // invisible full-height hit band per year — tiles the plot width (no gaps, no overlap),
+  // so hovering anywhere in a year's column reliably triggers that year.
+  const dx = (W - padL - padR) / (y1 - y0 || 1);
+  pts.forEach((p, i) => {
+    let x = X(p.year) - dx / 2, w = dx;
+    if (i === 0) { x = padL; w = X(p.year) + dx / 2 - padL; }
+    else if (i === pts.length - 1) { w = (W - padR) - (X(p.year) - dx / 2); }
+    svg += `<rect class="hitband" data-i="${i}" x="${x.toFixed(1)}" y="${padT}" width="${Math.max(0, w).toFixed(1)}" height="${H - padT - padB}" fill="transparent" pointer-events="all"/>`;
   });
   svg += `</svg>`;
-  $("series-chart").innerHTML = svg;
+  const host = $("series-chart");
+  host.innerHTML = svg;
   const cty = countyName(seriesData.county_fips);
   $("series-caption").innerHTML =
     `<strong>ZIP ${seriesData.zip}${cty ? ` · ${cty} County` : ""}</strong> — `
     + `<strong>${meta.label}</strong>: ${meta.gloss}. ${seriesData.source}.`;
+
+  // Custom HTML tooltip, re-bound on every render (metric switch rebuilds the SVG).
+  const svgEl = host.querySelector("svg");
+  const guide = host.querySelector("#series-guide");
+  const hl = host.querySelector("#series-hl");
+  let tip = host.querySelector(".chart-tip");
+  if (!tip) { tip = document.createElement("div"); tip.className = "chart-tip"; host.appendChild(tip); }
+  function showYear(i) {
+    const p = pts[i];
+    if (!p) return;
+    const r = svgEl.getBoundingClientRect(), px = X(p.year), py = Y(p[metric]);
+    guide.setAttribute("x1", px.toFixed(1)); guide.setAttribute("x2", px.toFixed(1)); guide.style.display = "";
+    hl.setAttribute("cx", px.toFixed(1)); hl.setAttribute("cy", py.toFixed(1)); hl.style.display = "";
+    tip.style.display = "block";
+    tip.style.left = (px / W) * r.width + "px";
+    tip.style.top = (py / H) * r.height + "px";
+    tip.innerHTML = `<strong>${p.year}</strong> · ${meta.label} ${fmt(p[metric])}${meta.unit}`;
+  }
+  host.querySelectorAll(".hitband").forEach((rect) =>
+    rect.addEventListener("mousemove", () => showYear(+rect.dataset.i)));
+  svgEl.addEventListener("mouseleave", () => {
+    tip.style.display = "none"; hl.style.display = "none"; guide.style.display = "none";
+  });
 }
 
 // Free-form questions -> the bounded agentic layer (Opus + get_place/get_fires_near),
