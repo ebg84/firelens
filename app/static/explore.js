@@ -1,16 +1,48 @@
 "use strict";
 
 const QUAD = {
-  priority: { color:"#d64545", label:"Priority",
+  priority: { color:"#d64545", label:"Priority", tip:"Priority — high weather + high stakes",
     read:"hazard and exposure both above the statewide median — manage fuel <em>and</em> harden structures." },
-  monitor: { color:"#e08a2e", label:"Monitor",
+  monitor: { color:"#e08a2e", label:"Monitor", tip:"Monitor — high weather, less built",
     read:"hazard elevated, little built to lose — monitor and manage fuel." },
-  harden: { color:"#3b82c4", label:"Harden",
+  harden: { color:"#3b82c4", label:"Harden", tip:"Harden — structures drive the risk",
     read:"hazard below median but exposure high — harden structures; people, not weather, drive the risk." },
-  low_priority: { color:"#3fa564", label:"Low priority",
+  low_priority: { color:"#3fa564", label:"Low priority", tip:"Lower priority — both below median",
     read:"hazard and exposure both below the statewide median — lower relative priority." },
 };
 const NA_COLOR = "#5a6b78";
+
+// CA county FIPS (3-digit suffix) -> name, for tooltips.
+const CA_COUNTY = {
+  "001":"Alameda","003":"Alpine","005":"Amador","007":"Butte","009":"Calaveras","011":"Colusa",
+  "013":"Contra Costa","015":"Del Norte","017":"El Dorado","019":"Fresno","021":"Glenn","023":"Humboldt",
+  "025":"Imperial","027":"Inyo","029":"Kern","031":"Kings","033":"Lake","035":"Lassen","037":"Los Angeles",
+  "039":"Madera","041":"Marin","043":"Mariposa","045":"Mendocino","047":"Merced","049":"Modoc","051":"Mono",
+  "053":"Monterey","055":"Napa","057":"Nevada","059":"Orange","061":"Placer","063":"Plumas","065":"Riverside",
+  "067":"Sacramento","069":"San Benito","071":"San Bernardino","073":"San Diego","075":"San Francisco",
+  "077":"San Joaquin","079":"San Luis Obispo","081":"San Mateo","083":"Santa Barbara","085":"Santa Clara",
+  "087":"Santa Cruz","089":"Shasta","091":"Sierra","093":"Siskiyou","095":"Solano","097":"Sonoma",
+  "099":"Stanislaus","101":"Sutter","103":"Tehama","105":"Trinity","107":"Tulare","109":"Tuolumne",
+  "111":"Ventura","113":"Yolo","115":"Yuba",
+};
+const countyName = (fips) => fips ? (CA_COUNTY[String(fips).slice(-3)] || "") : "";
+
+// 3-line glanceable tooltip: ZIP · County / plain quadrant / FWI era-trend (honest label).
+function tipHtml(p) {
+  const cty = countyName(p.county_fips);
+  const l1 = `<strong>${p.zip}</strong>${cty ? ` · ${cty} County` : ""}`;
+  const q = p.quadrant;
+  const l2 = q && QUAD[q] ? QUAD[q].tip : "Not in FEMA NRI — no quadrant";
+  let l3 = "";
+  if (p.fwi_pct_change != null) {
+    const v = p.fwi_pct_change * 100;
+    l3 = `<span style="color:#9fb0bd">FWI ${v >= 0 ? "+" : ""}${v.toFixed(1)}% vs 1980–2000 baseline</span>`;
+  }
+  return `${l1}<br/>${l2}${l3 ? "<br/>" + l3 : ""}`;
+}
+
+const zipLatLng = {};   // zip -> [lat,lon] (for search pan)
+const zipLayer = {};    // zip -> polygon layer (for search fit/highlight)
 const quadColor = (q) => (QUAD[q] && QUAD[q].color) || NA_COLOR;
 const fmtMoney = (v) => v == null ? "—" : "$" + Math.round(v).toLocaleString();
 const fmtNum = (v, d=1) => v == null ? "—" : Number(v).toLocaleString(undefined,{minimumFractionDigits:d,maximumFractionDigits:d});
@@ -57,32 +89,77 @@ async function loadPanel(zip) {
 }
 
 // --- overlay: polygons, fallback to centroids ---
+let geoLayer = null;
+
+function selectZip(zip) {
+  const lyr = zipLayer[zip];
+  if (lyr && geoLayer) {
+    if (selected) geoLayer.resetStyle(selected);
+    lyr.setStyle({ weight: 3, color: "#fff" }); lyr.bringToFront(); selected = lyr;
+    map.fitBounds(lyr.getBounds(), { maxZoom: 12 });
+  } else if (zipLatLng[zip]) {
+    map.setView(zipLatLng[zip], 11);
+  }
+  loadPanel(zip);
+}
+
 function addPolygons(fc) {
-  const layer = L.geoJSON(fc, {
+  geoLayer = L.geoJSON(fc, {
     style: (f) => ({ fillColor: quadColor(f.properties.quadrant), fillOpacity: 0.55,
       color: quadColor(f.properties.quadrant), weight: 1, opacity: 0.9 }),
     onEachFeature: (f, lyr) => {
-      const q = f.properties.quadrant;
-      lyr.bindTooltip(`${f.properties.zip} · ${q ? (QUAD[q]||{}).label || q : "no NRI"}`, { sticky: true });
-      lyr.on("click", () => {
-        if (selected) layer.resetStyle(selected);
-        lyr.setStyle({ weight: 3, color: "#fff" }); lyr.bringToFront(); selected = lyr;
-        loadPanel(f.properties.zip);
-      });
+      const p = f.properties;
+      lyr.bindTooltip(tipHtml(p), { sticky: true });
+      zipLayer[p.zip] = lyr;
+      lyr.on("click", () => selectZip(p.zip));
     },
   }).addTo(map);
 }
 
 function addCentroids(points) {
   points.forEach((p) => {
+    zipLatLng[p.zip] = [p.lat, p.lon];
     L.circleMarker([p.lat, p.lon], { radius: 5, fillColor: quadColor(p.quadrant),
       fillOpacity: 0.85, color: "#0b0f12", weight: 1 })
-      .bindTooltip(`${p.zip} · ${p.quadrant ? (QUAD[p.quadrant]||{}).label || p.quadrant : "no NRI"}`)
-      .on("click", () => loadPanel(p.zip)).addTo(map);
+      .bindTooltip(tipHtml(p)).on("click", () => loadPanel(p.zip)).addTo(map);
   });
 }
 
+// --- search: ZIP -> select+zoom; county -> fit bounds + list; else message ---
+async function doSearch(q) {
+  const el = document.getElementById("ex-panel");
+  el.innerHTML = `<div class="hint">Searching “${q}”…</div>`;
+  let res;
+  try { res = await (await fetch("/api/search?q=" + encodeURIComponent(q))).json(); }
+  catch (e) { el.innerHTML = `<div class="na-note">Search error.</div>`; return; }
+
+  if (res.type === "zip" && res.resolved) { selectZip(res.zip); return; }
+  if (res.type === "county") {
+    const pts = res.zips.filter((z) => z.lat != null);
+    if (pts.length) map.fitBounds(pts.map((z) => [z.lat, z.lon]), { maxZoom: 11 });
+    const chips = res.zips.slice(0, 60).map((z) =>
+      `<button class="chip" data-zip="${z.zip}">${z.zip}</button>`).join(" ");
+    el.innerHTML = `<div class="ex-head"><strong>${res.county} County</strong> — ${res.count} ZIPs</div>
+      <div class="ai-note">${res.note}</div><div style="margin-top:10px">${chips}</div>`;
+    el.querySelectorAll(".chip").forEach((c) => c.addEventListener("click", () => selectZip(c.dataset.zip)));
+    return;
+  }
+  if (res.type === "ambiguous") {
+    const chips = res.candidates.map((c) =>
+      `<button class="chip" data-c="${c}">${c}</button>`).join(" ");
+    el.innerHTML = `<div class="hint">${res.message}</div><div style="margin-top:8px">${chips}</div>`;
+    el.querySelectorAll(".chip").forEach((c) => c.addEventListener("click", () => doSearch(c.dataset.c)));
+    return;
+  }
+  el.innerHTML = `<div class="na-note">${res.message || "Couldn't resolve that."}</div>`;
+}
+
 (async function init() {
+  document.getElementById("ex-search").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const q = document.getElementById("ex-q").value.trim();
+    if (q) doSearch(q);
+  });
   document.getElementById("ex-panel").innerHTML = `<div class="hint">Loading the map…</div>`;
   try {
     const r = await fetch("/api/geo/zcta");

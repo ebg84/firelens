@@ -54,6 +54,39 @@ async function assess(zip) {
   render(data);
 }
 
+// Search: ZIP, county, or place name -> route to the real ZIP-grain view.
+async function doSearch(q) {
+  q = (q || "").trim();
+  if (!q) return;
+  setStatus(`Searching “${q}”…`);
+  let res;
+  try { res = await (await fetch("/api/search?q=" + encodeURIComponent(q))).json(); }
+  catch (e) { setStatus("Search error — try again.", true); return; }
+
+  if (res.type === "zip" && res.resolved) { assess(res.zip); return; }
+  if (res.type === "zip") { setStatus(res.message, true); return; }
+
+  const el = $("status");
+  if (res.type === "county") {
+    const chips = res.zips.slice(0, 80).map((z) =>
+      `<button class="chip" data-zip="${z.zip}">${z.zip}</button>`).join(" ");
+    el.hidden = false; el.classList.remove("error"); $("view").hidden = true;
+    el.innerHTML = `<strong>${res.county} County</strong> — ${res.count} ZIPs. `
+      + `<span class="na-note">${res.note}</span><div style="margin-top:10px">${chips}</div>`;
+    el.querySelectorAll(".chip").forEach((c) => c.addEventListener("click", () => assess(c.dataset.zip)));
+    return;
+  }
+  if (res.type === "ambiguous") {
+    const chips = res.candidates.map((c) =>
+      `<button class="chip" data-c="${c}">${c}</button>`).join(" ");
+    el.hidden = false; el.classList.remove("error"); $("view").hidden = true;
+    el.innerHTML = `${res.message}<div style="margin-top:8px">${chips}</div>`;
+    el.querySelectorAll(".chip").forEach((c) => c.addEventListener("click", () => doSearch(c.dataset.c)));
+    return;
+  }
+  setStatus(res.message || "Couldn't resolve that.", true);
+}
+
 let currentZip = null;
 const aiCache = {};
 
@@ -195,7 +228,7 @@ function renderNri(n) {
 
 // --- wiring ---
 document.addEventListener("DOMContentLoaded", () => {
-  $("zip-form").addEventListener("submit", (e) => { e.preventDefault(); assess($("zip").value); });
+  $("zip-form").addEventListener("submit", (e) => { e.preventDefault(); doSearch($("zip").value); });
   document.querySelectorAll(".chip").forEach((c) =>
     c.addEventListener("click", () => assess(c.dataset.zip)));
   $("ask-form").addEventListener("submit", (e) => {

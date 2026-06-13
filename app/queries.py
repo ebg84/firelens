@@ -6,7 +6,9 @@ no-raster ZIPs return None, never 0). No 100%-NULL column is ever selected.
 """
 from __future__ import annotations
 
-from . import db
+import re
+
+from . import counties, db
 
 FUEL_FRACTIONS = [
     "grass_frac", "grass_shrub_frac", "shrub_frac",
@@ -99,6 +101,63 @@ def place_payload(zip_code: str) -> dict | None:
             "wfir_afreq": d["wfir_afreq"],
             "n_tracts": d["nri_n_tracts"],
         },
+    }
+
+
+def county_zips(county_fips: str) -> list[dict]:
+    """Every serving ZIP in a county with its quadrant + centroid (for map navigation)."""
+    rows = db.query(
+        "select s.zip, s.quadrant, z.lat, z.lon "
+        "from zip_serving s join zip_meta z on s.zip = z.zip "
+        "where s.county_fips = ? order by s.zip",
+        [county_fips],
+    )
+    return [{"zip": r[0], "quadrant": r[1], "lat": r[2], "lon": r[3]} for r in rows]
+
+
+def search(q: str) -> dict:
+    """Resolve a ZIP, county, or free-text query to real ZIP-grain data.
+
+    A NAVIGATION aid, never a new aggregated metric. ZIP and county resolve from data;
+    place/city names are not resolved (no ZIP->place dataset) — never fabricated.
+    """
+    q = (q or "").strip()
+    if not q:
+        return {"type": "unresolved", "query": q, "message": "Enter a ZIP code or a county name."}
+
+    if re.fullmatch(r"\d{5}", q):
+        resolved = place_payload(q) is not None
+        return {
+            "type": "zip", "query": q, "resolved": resolved,
+            "zip": q if resolved else None,
+            "message": None if resolved else f"ZIP {q} is not in the California serving layer.",
+        }
+
+    match = counties.resolve_county(q)
+    if match:
+        name, fips = match
+        zips = county_zips(fips)
+        dist: dict = {}
+        for z in zips:
+            key = z["quadrant"] or "no_nri"
+            dist[key] = dist.get(key, 0) + 1
+        return {
+            "type": "county", "query": q, "county": name, "county_fips": fips,
+            "count": len(zips), "zips": zips, "distribution": dist,
+            "note": "A county is a navigation aid to ZIP-level data — counties hold both "
+            "higher- and lower-risk ZIPs, so there is no single county score.",
+        }
+
+    candidates = counties.county_candidates(q)
+    if len(candidates) == 1:
+        return search(candidates[0])  # unambiguous substring -> resolve as that county
+    if candidates:
+        return {"type": "ambiguous", "query": q, "candidates": candidates,
+                "message": "Did you mean one of these counties?"}
+    return {
+        "type": "unresolved", "query": q,
+        "message": "Enter a 5-digit ZIP code or a California county name "
+        "(place/city search isn't available yet).",
     }
 
 

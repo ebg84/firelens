@@ -22,8 +22,13 @@
     <div id="map"></div>
     <aside id="side">
       <h2>Hazard × exposure</h2>
-      <div class="hint">Click a ZIP to read its grounded assessment. Toggle the basemap (top-right):
-        flip to satellite to see the terrain behind the fuel reading.</div>
+      <form id="ex-search" class="ask-mini" autocomplete="off">
+        <input id="ex-q" placeholder="ZIP or county (e.g. 95404, Sonoma)…" />
+        <button type="submit">Find</button>
+      </form>
+      <div class="hint">Search a ZIP or county, or click a ZIP on the map to read its grounded
+        assessment. Toggle the basemap (top-right): flip to satellite to see the terrain behind
+        the fuel reading.</div>
       <div class="legend">
         <span><span class="sw" style="background:#d64545"></span>Priority (high/high)</span>
         <span><span class="sw" style="background:#e08a2e"></span>Monitor (high haz)</span>

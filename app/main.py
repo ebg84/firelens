@@ -162,6 +162,13 @@ def ask_stream(zip: str, question: str | None = None) -> StreamingResponse:
     )
 
 
+@app.get("/api/search")
+def search(q: str) -> dict:
+    """Resolve a ZIP, county, or free-text query to real ZIP-grain data — a navigation
+    aid (people don't know their ZIP), never a new aggregated metric."""
+    return queries.search(q)
+
+
 # --- map data (the /explore in-tandem evidence surface) ---
 
 _geo_cache: dict | None = None
@@ -178,10 +185,16 @@ def _zcta_featurecollection() -> dict | None:
             return None
         fc = json.loads(GEO_PATH.read_text())
         rows = db.query(
-            "select s.zip, s.quadrant, m.fwi_level, s.wfir_ealt "
+            "select s.zip, s.quadrant, m.fwi_level, s.wfir_ealt, s.county_fips, s.fwi_pct_change "
             "from zip_serving s left join zip_priority_matrix m on s.zip = m.zip"
         )
-        meta = {r[0]: {"quadrant": r[1], "fwi_level": r[2], "wfir_ealt": r[3]} for r in rows}
+        meta = {
+            r[0]: {
+                "quadrant": r[1], "fwi_level": r[2], "wfir_ealt": r[3],
+                "county_fips": r[4], "fwi_pct_change": r[5],
+            }
+            for r in rows
+        }
         for feat in fc.get("features", []):
             z = feat.get("properties", {}).get("zip")
             info = meta.get(z, {})
@@ -202,11 +215,17 @@ def geo_zcta():
 def geo_centroids() -> dict:
     """Fallback map layer: ZIP centroids + quadrant from zip_meta (zero external data)."""
     rows = db.query(
-        "select s.zip, z.lat, z.lon, s.quadrant "
+        "select s.zip, z.lat, z.lon, s.quadrant, s.county_fips, s.fwi_pct_change "
         "from zip_serving s join zip_meta z on s.zip = z.zip"
     )
     return {
-        "points": [{"zip": r[0], "lat": r[1], "lon": r[2], "quadrant": r[3]} for r in rows]
+        "points": [
+            {
+                "zip": r[0], "lat": r[1], "lon": r[2], "quadrant": r[3],
+                "county_fips": r[4], "fwi_pct_change": r[5],
+            }
+            for r in rows
+        ]
     }
 
 

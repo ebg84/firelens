@@ -15,12 +15,17 @@ load_dotenv(REPO_ROOT / ".env")
 
 
 def data_root() -> Path:
+    """The external heavy-data root (raw GEFF, interim products) for the harvest/ingest
+    pipeline, from $FIRELENS_DATA. Falls back to the sibling ``firelens-data/`` by
+    convention when unset, so the self-contained serving-DB build (build_duckdb over the
+    committed repo-root data/) works without the env var — e.g. in the deploy container,
+    which carries only the committed data/ and never touches the external root. Pipeline
+    scripts that need raw inputs set FIRELENS_DATA in .env/shell, so this never triggers there.
+    """
     v = os.environ.get("FIRELENS_DATA")
-    if not v:
-        raise RuntimeError(
-            "FIRELENS_DATA is unset. Set it in the repo-root .env or the shell."
-        )
-    return Path(v).expanduser()
+    if v:
+        return Path(v).expanduser()
+    return REPO_ROOT.parent / "firelens-data"
 
 
 DATA_ROOT = data_root()
