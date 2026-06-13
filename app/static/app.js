@@ -229,17 +229,25 @@ function renderNri(n) {
 
 // --- 85-year time-series (history, not forecast): full-coverage spine metrics, 1940-2026 ---
 const SERIES_METRICS = {
-  fwi_mean:     { label: "Fire Weather Index", gloss: "how dangerous fire-weather conditions are — heat, wind, and dryness combined", yLabel: "FWI (annual mean)", decimals: 1 },
-  extreme_days: { label: "Extreme fire-weather days", gloss: "days per year of extreme fire-weather conditions", yLabel: "days / year", decimals: 0 },
-  season_len:   { label: "Fire-season length", gloss: "how many days a year the weather can carry fire", yLabel: "days / year", decimals: 0 },
-  dc_max:       { label: "Drought Code", gloss: "how dry the deep soil is, which drives how intensely fire burns", yLabel: "Drought Code (annual max)", decimals: 0 },
+  fwi_mean:     { label: "Fire Weather Index", gloss: "how dangerous fire-weather conditions are — heat, wind, and dryness combined", yLabel: "FWI (annual mean)", unit: "", decimals: 1 },
+  extreme_days: { label: "Extreme fire-weather days", gloss: "days per year of extreme fire-weather conditions", yLabel: "days / year", unit: " days", decimals: 0 },
+  season_len:   { label: "Fire-season length", gloss: "how many days a year the weather can carry fire", yLabel: "days / year", unit: " days", decimals: 0 },
+  dc_max:       { label: "Drought Code", gloss: "how dry the deep soil is, which drives how intensely fire burns", yLabel: "Drought Code (annual max)", unit: "", decimals: 0 },
 };
 const SERIES_ORDER = ["fwi_mean", "extreme_days", "season_len", "dc_max"];
+// viridis (low=dark/purple, high=bright/yellow) for coloring the line BY VALUE, per-metric scale
+const SVIRIDIS = [[68,1,84],[72,40,120],[62,74,137],[49,104,142],[38,130,142],[31,158,137],[53,183,121],[110,206,88],[181,222,43],[253,231,37]];
+function sviridis(t) {
+  t = Math.max(0, Math.min(1, t));
+  const n = SVIRIDIS.length - 1, i = Math.min(n - 1, Math.floor(t * n)), f = t * n - i;
+  const a = SVIRIDIS[i], b = SVIRIDIS[i + 1], c = (k) => Math.round(a[k] + (b[k] - a[k]) * f);
+  return `rgb(${c(0)},${c(1)},${c(2)})`;
+}
 let seriesData = null, seriesMetric = "fwi_mean";
 
 async function renderSeries(zip) {
   const host = $("series-chart");
-  host.innerHTML = `<span class="loading">Loading the 1940–2026 record…</span>`;
+  host.innerHTML = `<span class="loading">Loading the record…</span>`;
   $("series-caption").textContent = "";
   try {
     const r = await fetch("/api/series/" + zip);
@@ -269,23 +277,38 @@ function drawSeries(metric) {
   if (lo === hi) hi = lo + 1;
   const X = (yr) => padL + (yr - y0) / (y1 - y0) * (W - padL - padR);
   const Y = (v) => H - padB - (v - lo) / (hi - lo) * (H - padT - padB);
-  const path = pts.map((p, i) => `${i ? "L" : "M"}${X(p.year).toFixed(1)},${Y(p[metric]).toFixed(1)}`).join(" ");
+  const norm = (v) => (v - lo) / (hi - lo);     // per-metric normalization for the viridis scale
+  const fmt = (v) => Number(v).toFixed(meta.decimals);
   const bx1 = X(1980), bx2 = X(2000);
-  let svg = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" class="chart" role="img" aria-label="${meta.label} 1940 to 2026">`;
+  let svg = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" class="chart" role="img" aria-label="${meta.label} ${y0} to ${y1}">`;
   svg += `<rect x="${bx1.toFixed(1)}" y="${padT}" width="${(bx2 - bx1).toFixed(1)}" height="${H - padT - padB}" class="band"/>`;
   svg += `<text x="${((bx1 + bx2) / 2).toFixed(1)}" y="${padT - 6}" class="band-lbl" text-anchor="middle">1980–2000 baseline</text>`;
   [lo, (lo + hi) / 2, hi].forEach((v) => {
     const yy = Y(v);
     svg += `<line x1="${padL}" y1="${yy.toFixed(1)}" x2="${W - padR}" y2="${yy.toFixed(1)}" class="grid"/>`;
-    svg += `<text x="${padL - 6}" y="${(yy + 3).toFixed(1)}" class="tick" text-anchor="end">${v.toFixed(meta.decimals)}</text>`;
+    svg += `<text x="${padL - 6}" y="${(yy + 3).toFixed(1)}" class="tick" text-anchor="end">${fmt(v)}</text>`;
   });
   [1940, 1960, 1980, 2000, 2020].filter((t) => t >= y0 && t <= y1).forEach((t) => {
     svg += `<text x="${X(t).toFixed(1)}" y="${H - padB + 16}" class="tick" text-anchor="middle">${t}</text>`;
   });
   svg += `<text x="4" y="${padT - 6}" class="axis-lbl">${meta.yLabel}</text>`;
-  svg += `<path d="${path}" class="line"/></svg>`;
+  // line segments colored BY VALUE (viridis, normalized to this metric's own range)
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i], b = pts[i + 1];
+    const c = sviridis((norm(a[metric]) + norm(b[metric])) / 2);
+    svg += `<line x1="${X(a.year).toFixed(1)}" y1="${Y(a[metric]).toFixed(1)}" x2="${X(b.year).toFixed(1)}" y2="${Y(b[metric]).toFixed(1)}" stroke="${c}" stroke-width="2"/>`;
+  }
+  // a point per year, colored by value, each with a native hover tooltip: year + value
+  pts.forEach((p) => {
+    svg += `<circle cx="${X(p.year).toFixed(1)}" cy="${Y(p[metric]).toFixed(1)}" r="2.6" fill="${sviridis(norm(p[metric]))}" stroke="#0b0f12" stroke-width="0.5">`
+      + `<title>${p.year} · ${meta.label} ${fmt(p[metric])}${meta.unit}</title></circle>`;
+  });
+  svg += `</svg>`;
   $("series-chart").innerHTML = svg;
-  $("series-caption").innerHTML = `<strong>${meta.label}</strong> — ${meta.gloss}. ${seriesData.source}.`;
+  const cty = countyName(seriesData.county_fips);
+  $("series-caption").innerHTML =
+    `<strong>ZIP ${seriesData.zip}${cty ? ` · ${cty} County` : ""}</strong> — `
+    + `<strong>${meta.label}</strong>: ${meta.gloss}. ${seriesData.source}.`;
 }
 
 // Free-form questions -> the bounded agentic layer (Opus + get_place/get_fires_near),

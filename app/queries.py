@@ -167,28 +167,39 @@ def cell_series(zip_code: str) -> dict | None:
     never fire events / NRI / fuel / pending layers. None if the ZIP isn't served.
     """
     cell = db.query_one(
-        "select c.cell_id, c.lat, c.lon, m.weight "
+        "select c.cell_id, c.lat, c.lon, m.weight, z.county_fips "
         "from zip_cell_map m join cell_meta c on m.cell_id = c.cell_id "
+        "join zip_meta z on m.zip = z.zip "
         "where m.zip = ? order by m.weight desc limit 1",
         [zip_code],
     )
     if cell is None:
         return None
-    cell_id, lat, lon, weight = cell
+    cell_id, lat, lon, weight, county_fips = cell
+    # The GEFF-ERA5 spine trails into a PARTIAL current year (e.g. mid-2026 reads a half-year
+    # annual value — a false collapse). Exclude the trailing year so the chart ends on the last
+    # COMPLETE year; all four metrics share the artifact, so one trim fixes them consistently.
+    max_year = db.query_one("select max(year) from cell_annual where cell_id = ?", [cell_id])[0]
+    complete_through = max_year - 1
     rows = db.query(
         "select year, fwi_mean, extreme_days, season_len, dc_max from cell_annual "
-        "where cell_id = ? order by year",
-        [cell_id],
+        "where cell_id = ? and year <= ? order by year",
+        [cell_id, complete_through],
     )
+    first_year = rows[0][0] if rows else None
     return {
         "zip": zip_code,
         "cell_id": cell_id,
         "lat": lat,
         "lon": lon,
         "weight": weight,
+        "county_fips": county_fips,
         "metric": "fwi_mean",
         "metrics": ["fwi_mean", "season_len", "dc_max", "extreme_days"],  # all full-coverage spine
-        "source": "ERA5-derived fire-weather record, 1940-2026, the grid cell this ZIP sits in",
+        "complete_through": complete_through,
+        "partial_year_excluded": max_year,
+        "source": f"ERA5-derived fire-weather record, {first_year}-{complete_through}, "
+        "the grid cell this ZIP sits in",
         "points": [
             {"year": r[0], "fwi_mean": r[1], "extreme_days": r[2],
              "season_len": r[3], "dc_max": r[4]}

@@ -16,12 +16,16 @@ def client():
         yield c
 
 
-def test_series_full_span(client):
+def test_series_ends_on_last_complete_year(client):
+    """Honesty: the partial current year (2026) is excluded so a half-year isn't a false cliff."""
     s = client.get("/api/series/95404").json()
     years = [p["year"] for p in s["points"]]
-    assert years[0] == 1940 and years[-1] == 2026
-    assert len(years) == 87  # full 1940-2026 depth, no truncation
+    assert years[0] == 1940 and years[-1] == 2025  # trailing partial year trimmed
+    assert len(years) == 86
     assert years == sorted(years)
+    assert s["complete_through"] == 2025 and s["partial_year_excluded"] == 2026
+    assert all(p["year"] != 2026 for p in s["points"])
+    assert s["county_fips"] == "06097"  # for the chart's ZIP · County caption
 
 
 def test_series_all_four_spine_metrics(client):
@@ -37,8 +41,8 @@ def test_series_plots_only_spine_no_forbidden_layers(client):
     blob = str(s).lower()
     for bad in FORBIDDEN:
         assert bad not in str(s["points"]).lower()
-    # the source is labeled as the grid cell, full range
-    assert "1940-2026" in s["source"] and "grid cell" in s["source"].lower()
+    # the source is labeled as the grid cell, ending on the last complete year
+    assert "1940-2025" in s["source"] and "grid cell" in s["source"].lower()
 
 
 def test_series_unknown_and_malformed(client):
