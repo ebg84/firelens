@@ -21,10 +21,11 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
 import duckdb
 
-from prep import metrics, paths
+from prep import domains, metrics, paths
 
 DATA = paths.REPO_ROOT / "data"
-GATE_IGNORE = ["tests/prep/test_dailies.py", "tests/prep/test_export.py"]
+GATE_IGNORE = ["tests/prep/test_dailies.py", "tests/prep/test_export.py",
+               "tests/prep/test_domains.py"]  # post-export contract checks, not pre-export gates
 PENDING = {
     "vpd": {"lane": "Lane A CDS harvest (t_max + td_mean) -> 05_aggregates rerun",
             "blocked_on": "harvest"},
@@ -53,6 +54,22 @@ def _git_hash():
                                        cwd=paths.REPO_ROOT, text=True).strip()
     except Exception:
         return "unknown"
+
+
+def _write_schema(manifest):
+    """Generate docs/SCHEMA.md FROM the manifest's metric_domains — one source of truth."""
+    md = manifest["metric_domains"]
+    out = ["# SCHEMA.md — metric domain contract (AUTO-GENERATED)", "",
+           "Do not edit by hand. Regenerate: `python prep/07_export.py`. Source of truth:",
+           "`prep/domains.py` -> `data/manifest.json` (`metric_domains`) -> this file.",
+           "**Consumers (map/analytics) MUST read the manifest contract, never hardcode grain.**",
+           "",
+           "| metric | state | spatial_grain (+join path) | join_key | temporal_range | granularity | vintage |",
+           "|---|---|---|---|---|---|---|"]
+    for name, d in md.items():
+        out.append(f"| `{name}` | {d['state']} | {d['spatial_grain']} | `{d['join_key']}` | "
+                   f"{d['temporal_range']} | {d['temporal_granularity']} | {d['vintage']} |")
+    (paths.REPO_ROOT / "docs" / "SCHEMA.md").write_text("\n".join(out) + "\n")
 
 
 def export():
@@ -95,8 +112,10 @@ def export():
         "tables": manifest_tables,
         "served_metrics": live,
         "pending_metrics": PENDING,
+        "metric_domains": domains.DOMAINS,  # the spatial/temporal coherence contract
     }
     (DATA / "manifest.json").write_text(json.dumps(manifest, indent=2))
+    _write_schema(manifest)
 
     # size budget
     total = sum(p.stat().st_size for p in DATA.rglob("*") if p.is_file())
