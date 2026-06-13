@@ -37,6 +37,14 @@
         <label for="zip-opacity">ZIP layer opacity</label>
         <input id="zip-opacity" type="range" min="0" max="100" value="60" />
       </div>
+      <div id="fire-window" class="fire-window" style="display:none">
+        <div class="fire-window-title">Recorded fire ignitions, FOD/FRAP 1992–2025</div>
+        <label class="fire-range-lbl">From <span id="fw-from-lbl">1992</span></label>
+        <input id="fw-from" type="range" min="1992" max="2025" value="1992" />
+        <label class="fire-range-lbl">To <span id="fw-to-lbl">2025</span></label>
+        <input id="fw-to" type="range" min="1992" max="2025" value="2025" />
+        <div id="fire-count" class="fire-count"></div>
+      </div>
       <div id="ex-panel"></div>
     </aside>
   </div>

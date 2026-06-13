@@ -152,17 +152,39 @@ const fireHeat = L.heatLayer([], {
   radius: 16, blur: 22, maxZoom: 10, minOpacity: 0.25,
   gradient: { 0.2: "#3b0a45", 0.4: "#8c2160", 0.6: "#d6453f", 0.8: "#f0902e", 1.0: "#ffe14d" },
 });
-let firesLoaded = false;
+let fireData = [], firesLoaded = false;
+
+// Re-render the heat layer over the selected year window — pure client-side filter of the
+// already-loaded points (no re-fetch). Count is shown so a sparse window reads as
+// fewer-fires-in-that-window, not missing data.
+function renderFireWindow() {
+  if (!firesLoaded) return;
+  let lo = +document.getElementById("fw-from").value, hi = +document.getElementById("fw-to").value;
+  if (lo > hi) { const t = lo; lo = hi; hi = t; }
+  const pts = fireData
+    .filter((f) => f.year != null && f.year >= lo && f.year <= hi)
+    .map((f) => [f.lat, f.lon, f.fwi_pctile == null ? 0.5 : f.fwi_pctile]);  // intensity = FWI pctile
+  fireHeat.setLatLngs(pts);
+  document.getElementById("fw-from-lbl").textContent = lo;
+  document.getElementById("fw-to-lbl").textContent = hi;
+  document.getElementById("fire-count").textContent =
+    `${pts.length.toLocaleString()} recorded ignitions, ${lo}–${hi}`;
+}
+
 map.on("overlayadd", async (e) => {
-  if (e.layer !== fireHeat || firesLoaded) return;
-  firesLoaded = true;
-  try {
-    const d = await (await fetch("/api/fires")).json();
-    const pts = d.fires
-      .filter((f) => f.lat != null && f.lon != null)
-      .map((f) => [f.lat, f.lon, f.fwi_pctile == null ? 0.5 : f.fwi_pctile]);  // intensity = FWI pctile
-    fireHeat.setLatLngs(pts);
-  } catch (err) { firesLoaded = false; }  // allow retry on re-toggle
+  if (e.layer !== fireHeat) return;
+  document.getElementById("fire-window").style.display = "";
+  if (!firesLoaded) {
+    try {
+      const d = await (await fetch("/api/fires")).json();
+      fireData = d.fires.filter((f) => f.lat != null && f.lon != null);
+      firesLoaded = true;
+    } catch (err) { return; }  // allow retry on re-toggle
+  }
+  renderFireWindow();
+});
+map.on("overlayremove", (e) => {
+  if (e.layer === fireHeat) document.getElementById("fire-window").style.display = "none";
 });
 
 L.control.layers(
@@ -283,6 +305,10 @@ async function doSearch(q) {
     const o = e.target.value / 100;
     geoLayer.setStyle({ fillOpacity: o, opacity: o });
   });
+  // Fire-history year window: two handles, kept from <= to by pushing the other handle.
+  const fwFrom = document.getElementById("fw-from"), fwTo = document.getElementById("fw-to");
+  fwFrom.addEventListener("input", () => { if (+fwFrom.value > +fwTo.value) fwTo.value = fwFrom.value; renderFireWindow(); });
+  fwTo.addEventListener("input", () => { if (+fwTo.value < +fwFrom.value) fwFrom.value = fwTo.value; renderFireWindow(); });
   document.getElementById("ex-panel").innerHTML = `<div class="hint">Loading the map…</div>`;
   try {
     const r = await fetch("/api/geo/zcta");
