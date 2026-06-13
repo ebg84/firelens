@@ -18,6 +18,12 @@ happened before the export was locked.
 | `c7a045e` | 22:00 | **8c — LANDFIRE FBFM40 fuel.** raster zonal (custom CA-Albers CRS), code→class from .vat, non-burnable masked; coverage 1801/1801; Palisades reads chaparral. |
 | `65e7e8a` | 22:00 | **Validation sweep — join-resolution (validated baseline).** 7/7 checks; orphan-cell finding accepted; re-runnable gates. |
 | `1c2ff49` | 22:05 | **STATE.md** — resume-point handoff (the judgment a fresh context can't reconstruct). |
+| `b29daf1` | 22:15 | **Authoritative reference docs** — VARIABLES/MAPPINGS/ANALYTICS/CHANGELOG generated from ground truth; ARCHITECTURE Part 3 decision record (D1–D7); first DDL-drift flags. |
+| `35690db` | 22:31 | **Meta-validation** — `prep/meta_validate.py` mutation-tests the suite (10 gates proven to have TEETH, negative control green); `META_VALIDATION.md`; surfaces the null-fabrication gap + `structures_destroyed` finding. |
+| `2962b43` | 22:47 | **Additive promotion** — `nri_zip`/`zip_priority_matrix`/`fuel_context` promoted into committed `data/` (HEAD-reproducible); manifest.tables registered; fuel composition NULL'd for zero-burnable. |
+| `3743a4e` | 23:00 | **Fuel NULL fix + blind-spot closure** — 34 (not 12) NULL-composition ZIPs (22 no-raster + 12 nothing-burnable); strengthened `check_metric_spatial_universe` to assert the fuel coverage decomposition the sweep had missed. |
+| `66491c8` | 23:02 | **DuckDB serving DB** — `prep/build_duckdb.py` (generated, read-only, from committed `data/`); `cell_annual` + `zip_serving` views + `metric_domains` table; diff-validation gate (suite 98 pass / 7 dailies-pending). |
+| `68253a9` | 23:03 | **Pending-decision log** — fuel `dominant_class` no-raster mislabel recorded (c-e); claim-without-data ledger. |
 
 **Held uncommitted (Lane A, pending harvest):** `04b_fetch_era5_daily`, `04c_ingest_dailies`,
 `ingest_dailies`, the K→°C conversions, `test_dailies` — fold in via re-export when the ERA5

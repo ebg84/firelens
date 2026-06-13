@@ -762,6 +762,21 @@ ZIPs with `burnable_frac` < ~0.15 are masked/hatched in the choropleth and
 the agent names the fuel context unprompted.
 
 ## 5. Serving-layer DDL (DuckDB)
+
+> **AS-BUILT RECONCILIATION (2026-06-13).** The DDL below was the PLANNED schema; the
+> authoritative as-built catalog is `docs/VARIABLES.md` + `data/manifest.json`. Known
+> deviations: (a) `annual_metrics` ships `dc_max`/`erc_mean` and NOT the pending
+> `vpd_max_mean`/`red_flag_days`/`cdd_max` (those land with the harvest) — corrected below;
+> (b) `fuel_context` ships explicit per-group fraction columns + `non_burnable_frac` +
+> `total_px`, not `class_json`, with composition NULL for 34 undefined ZIPs — corrected below;
+> (c) `county_trends` and `firms_density` are DECLARED but NOT BUILT (map-side / pending);
+> (d) `zip_trends.robust`, `fire_events.erc_pctile`, `fire_events.structures_destroyed` are
+> 100% NULL by provenance (claim-without-data — honest-or-drop, STATE.md §5); (e) the three
+> additive tables (`nri_zip`, `zip_priority_matrix`, `fuel_context`) are committed in `data/`.
+> The app reads a GENERATED `firelens.duckdb` (`prep/build_duckdb.py`) over this parquet,
+> adding `cell_annual` (824-cell field) and `zip_serving` (1,801-canonical wide view) VIEWS
+> and a `metric_domains` contract TABLE — none of which are a second source of truth.
+
 ```sql
 CREATE TABLE cell_meta    (cell_id INT PRIMARY KEY, lat DOUBLE, lon DOUBLE,
                            county_fips VARCHAR, land_frac DOUBLE);
@@ -770,14 +785,17 @@ CREATE TABLE zip_meta     (zip VARCHAR PRIMARY KEY, lat DOUBLE, lon DOUBLE,
                            -- fires-near distance + map centering (D1)
 CREATE TABLE zip_cell_map (zip VARCHAR, cell_id INT, weight DOUBLE);
 CREATE TABLE annual_metrics (cell_id INT, year INT, fwi_mean DOUBLE,
-  fwi_max DOUBLE, vpd_max_mean DOUBLE, red_flag_days INT, cdd_max INT,
-  season_len INT, extreme_days INT);
+  fwi_max DOUBLE, extreme_days INT, season_len INT,
+  dc_max DOUBLE, erc_mean DOUBLE);   -- AS-BUILT: dc_max/erc_mean present;
+  -- vpd_max_mean/red_flag_days/cdd_max are PENDING (land with the harvest)
 CREATE TABLE pctile_lut   (cell_id INT, iso_week INT,
   p10 DOUBLE, p20 DOUBLE, p30 DOUBLE, p40 DOUBLE, p50 DOUBLE, p60 DOUBLE,
   p70 DOUBLE, p80 DOUBLE, p90 DOUBLE, p95 DOUBLE, p99 DOUBLE);
   -- deciles + tails (D3): today's value brackets to a tight band
 CREATE TABLE zip_trends   (zip VARCHAR, metric VARCHAR, baseline DOUBLE,
-  recent DOUBLE, pct_change DOUBLE, freq_ratio DOUBLE, robust BOOLEAN);
+  recent DOUBLE, pct_change DOUBLE, freq_ratio DOUBLE, robust INT);
+  -- AS-BUILT: robust is INT and currently 100% NULL (decide: populate or drop)
+-- county_trends: DECLARED, NOT BUILT (map-side, deferred — R4 cuttable)
 CREATE TABLE county_trends(county_fips VARCHAR, county VARCHAR,
   metric VARCHAR, baseline DOUBLE, recent DOUBLE, pct_change DOUBLE,
   freq_ratio DOUBLE, robust BOOLEAN);   -- FIPS is the join key (D2)
@@ -790,11 +808,25 @@ CREATE TABLE fire_events  (fire_id VARCHAR PRIMARY KEY, name VARCHAR,
                              -- (e.g. Lightning / Human); display only
   source VARCHAR);  -- lat/lon (D1): centroid retained for app-side
                     -- haversine; distances labeled "≈ to fire center"
+-- firms_density: DECLARED, NOT BUILT (pending; NASA FIRMS not staged)
 CREATE TABLE firms_density(hex_id VARCHAR, lat DOUBLE, lon DOUBLE,
   n_detections INT, share_high_pctile DOUBLE,
   frp_mean DOUBLE, frp_max DOUBLE);  -- FRP = intensity proxy, free column
-CREATE TABLE fuel_context (zip VARCHAR PRIMARY KEY, burnable_frac DOUBLE,
-  dominant_class VARCHAR, class_json VARCHAR);  -- stretch; absent = layer off
+-- AS-BUILT fuel_context (explicit group fractions, NOT class_json):
+CREATE TABLE fuel_context (zip VARCHAR PRIMARY KEY, total_px BIGINT,
+  non_burnable_frac DOUBLE, burnable_frac DOUBLE,
+  grass_frac DOUBLE, grass_shrub_frac DOUBLE, shrub_frac DOUBLE,
+  timber_understory_frac DOUBLE, timber_litter_frac DOUBLE,
+  slash_blowdown_frac DOUBLE, dominant_class VARCHAR);
+  -- composition NULL where nothing burnable (34 ZIPs = 22 no-raster + 12
+  -- nothing-burnable), distinct from a real burnable_frac=0
+
+-- ADDITIVE (committed in data/): FEMA NRI consequence + hazard×exposure matrix
+CREATE TABLE nri_zip (zip VARCHAR PRIMARY KEY, n_tracts BIGINT,
+  wfir_risks DOUBLE, wfir_afreq DOUBLE, wfir_ealt DOUBLE);  -- ZIP(1693)
+CREATE TABLE zip_priority_matrix (zip VARCHAR PRIMARY KEY, fwi_level DOUBLE,
+  wfir_ealt DOUBLE, quadrant VARCHAR);  -- ZIP(1693); fwi_level = recent-era
+  -- MEAN (hazard-axis switch to high-pctile-day count is pending, STATE.md §5)
 ```
 
 ## 6. Limitations appendix (methodology page, verbatim)

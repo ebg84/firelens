@@ -419,3 +419,28 @@ the build, grounded in the committed files. See VARIABLES/MAPPINGS/ANALYTICS/CHA
   annual exists, a metric shown for a ZIP that lacks it) by contract rather than by catching bugs later.
 - Alternatives rejected: hardcoded grains/ranges in the app — drifts silently the moment a layer
   folds in.
+
+**D8 — Additive layers promoted into the committed serving layer (not left in interim).**
+- Decision: `nri_zip`, `zip_priority_matrix`, `fuel_context` are copied into committed `data/`
+  (per-ZIP, MB-scale) and registered in `manifest.tables`; their `state` stays `additive`.
+- Reasoning: the DuckDB wide view needs them, and the serving DB must be reproducible from HEAD
+  alone — leaving them in the gitignored heavy root (`$FIRELENS_DATA/interim`) would break that
+  invariant. Promotion is a LOCATION change, not a state change (the locked `test_domains` enum
+  is untouched).
+- Alternatives rejected: (a) the builder reads `interim/` — violates source-only reproducibility;
+  (b) flip the manifest `state` to a new `additive-served` enum — would break the write-locked
+  `test_domains` reactively; deferred as a named-turn decision instead.
+
+**D9 — The DuckDB serving DB is a GENERATED artifact, never a second source of truth.**
+- Decision: `prep/build_duckdb.py` builds a read-only `firelens.duckdb` from committed `data/`
+  ONLY; the binary is gitignored, the builder is committed, and the DB is rebuilt (never
+  hand-edited). It adds `cell_annual` + `zip_serving` VIEWS and a `metric_domains` TABLE, and a
+  diff-validation gate asserts DB ≡ source parquet (rowcount/dtype/NULL-count/range/ZIP-format).
+- Reasoning: the app wants one queryable surface, but the parquet must stay the source of truth;
+  a generated, diff-validated DB gives query ergonomics without a divergent copy. NULL provenance
+  is carried through honestly (108 NRI-absent, 34 fuel-undefined, three all-NULL claim columns) —
+  never fabricated.
+- Alternatives rejected: (a) hand-curated `.duckdb` committed as the serving surface — a second
+  source of truth that drifts; (b) a denormalized wide parquet as the source — the wide row is a
+  VIEW over the normalized tables, regenerable, validated by the same diff gate (cf. validation
+  check #7).

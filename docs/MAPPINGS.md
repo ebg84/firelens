@@ -37,3 +37,10 @@ with a 2025 snapshot. (Validation check #6 confirms no stored time dim.)
 1940–2026). Occurrence snaps to it (point→cell, date); fuel/NRI/regulatory are static
 attributes OF the ZIP; trends aggregate the spine by year and compare eras. Every served
 ZIP value is a `zip_cell_map`-weighted walk along the spine.
+
+## Materialized in the DuckDB (`prep/build_duckdb.py`)
+These joins surface as two read-only VIEWS over the committed parquet: `cell_annual`
+(`annual_metrics ⋈ cell_meta` → the 824-cell field + lat/lon) and `zip_serving` (canonical
+1,801 ZCTAs LEFT JOIN the pivoted `zip_trends` + `nri_zip` + `zip_priority_matrix` +
+`fuel_context` → one current/snapshot row per ZIP, NULLs honest: 108 NRI-absent, 34
+fuel-undefined). The wide row is a VIEW, never a second source of truth.

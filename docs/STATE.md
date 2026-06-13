@@ -7,24 +7,32 @@ resume.**
 
 ---
 
-## 1. STATUS — live snapshot (as of 2026-06-12 22:02 PDT; RE-VERIFY ON RESUME)
-- **Last commit:** `65e7e8a` (2026-06-12 22:00 −0700) — "validation sweep (validated baseline)".
+## 1. STATUS — live snapshot (as of 2026-06-12 ~23:03 PDT; RE-VERIFY ON RESUME)
+- **Last commit:** `68253a9` (2026-06-12 23:03 −0700) — "log fuel dominant_class no-raster
+  mislabel as pending (c-e)".
 - **Committed (the validated baseline):** M1 ingest → M2 geography → M3 registry → M5a
-  aggregates → M6 pairing → **M7 gated export (spine-now foundation, `2ab030c`)** → 8a/8b
-  NRI+matrix (`b2eede2`) → coherence framework (`58f4f59`) → 8c fuel (`c7a045e`) →
-  validation sweep (`65e7e8a`).
-- **Uncommitted (11 files, HELD = Lane A, pending the harvest):** `prep/04b_fetch_era5_daily.py`,
-  `prep/04c_ingest_dailies.py`, `prep/ingest_dailies.py`, `prep/04_fetch_dailies.py`(M),
-  `prep/fields.py`(M, K→°C/m→mm), `prep/morning_runbook.sh`, `tests/prep/test_dailies.py`,
-  `tests/prep/test_ingest_dailies.py`, `tests/prep/test_tracer.py`(M, idempotency),
-  `restart_processes.md`, `docs/EXPORT_GATE_REPORT.md`.
-- **Tests:** **91 passed / 7 pending-by-design** — the 7 are ALL `test_dailies` (schema,
-  cells_match, temperature_range, dewpoint, precip_nonneg, year_coverage, date_span) —
-  red ONLY because the dailies harvest hasn't landed. Everything else green.
-- **Harvest:** **9 / 141** ERA5 daily NetCDFs in `raw/era5_daily/` (Phase-1 t_max only).
-- **Running in background:** `prep/04b_fetch_era5_daily.py` (pid 35684, caffeinate-wrapped)
-  — the developer's CDS harvest, in the developer's terminal. Resumable (skip-existing).
-- **`data/` baseline drift = CLEAN; Tubbs anchor = 0.9618.**
+  aggregates → M6 pairing → **M7 gated export (`2ab030c`)** → 8a/8b NRI+matrix (`b2eede2`) →
+  coherence framework (`58f4f59`) → 8c fuel (`c7a045e`) → validation sweep (`65e7e8a`) →
+  STATE.md (`1c2ff49`) → reference docs + Part 3 ledger (`b29daf1`) → **meta-validation
+  (`35690db`)** → **additive promotion into `data/` (`2962b43`)** → **fuel NULL fix + sweep
+  blind-spot closure (`3743a4e`)** → **DuckDB serving DB + diff-gate (`66491c8`)** →
+  pending-decision log (`68253a9`).
+- **`data/` is now the COMPLETE serving layer — 11 parquet, 5.6 MB:** 7 served + 3 additive
+  (`nri_zip`, `zip_priority_matrix`, `fuel_context`) + manifest. The DuckDB
+  (`firelens.duckdb`, gitignored) is generated from it via `prep/build_duckdb.py`.
+- **Uncommitted (HELD = Lane A dailies — DEFERRED POST-EVENT, stays LOCAL-ONLY; do NOT push,
+  do NOT delete — for the post-event ERA5 harvest):**
+  `prep/04b_fetch_era5_daily.py`, `prep/04c_ingest_dailies.py`, `prep/ingest_dailies.py`,
+  `prep/04_fetch_dailies.py`(M), `prep/fields.py`(M, K→°C/m→mm), `prep/morning_runbook.sh`,
+  `tests/prep/test_dailies.py`, `tests/prep/test_ingest_dailies.py`,
+  `tests/prep/test_tracer.py`(M), `restart_processes.md`, `docs/EXPORT_GATE_REPORT.md`.
+- **Tests:** **98 passed / 7 pending-by-design** — the 7 are ALL `test_dailies` (red ONLY
+  because the dailies harvest hasn't landed). The +7 vs the prior 91 are the DuckDB diff-gate.
+- **All-NULL columns (claim-without-data, do NOT fabricate):** `structures_destroyed`,
+  `fire_events.erc_pctile`, `zip_trends.robust` — see §5 (c-b/c-d).
+- **Harvest:** **9 / 141** ERA5 daily NetCDFs (Phase-1 t_max only); the CDS fetch resumes in
+  the developer's terminal (skip-existing).
+- **`data/` baseline drift = CLEAN (sweep 7/7, DuckDB diff clean); Tubbs anchor = 0.9618.**
 
 ---
 
@@ -189,7 +197,11 @@ refinement autonomously. **Re-arm the hourly ScheduleWakeup on resume.**
 
 ---
 
-> **If you read nothing else:** the validated baseline is committed (`65e7e8a`, drift CLEAN,
-> Tubbs 0.9618). **The single next action is (5c) meta-validation / mutation testing — prove
-> the gates have teeth before building further.** Everything additive folds in via idempotent
-> re-export; the harvest is decoupled; never spin the NRI null as a win.
+> **If you read nothing else:** the data-layer beachhead is complete and validated (HEAD
+> `68253a9` once the pending doc/runbook commits land; `data/` = 11 parquet / 5.6 MB, DuckDB
+> generated via `prep/build_duckdb.py`, suite 98 pass / 7 dailies-pending, footprint = real
+> California). **The next action is BUILD DAY** — read `docs/DEVELOPMENT_PLAN.md` and
+> `BUILD_DAY_RUNBOOK.md`, then build the app over the DuckDB + manifest. Meta-validation is
+> DONE (gates proven; `docs/META_VALIDATION.md`). Pending DECISIONS live in §5 (c-a..c-e):
+> honest-or-drop, never fabricate. The harvest is decoupled (additive folds in by re-export);
+> never spin the NRI null as a win.

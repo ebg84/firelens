@@ -107,6 +107,24 @@ Sweep 1 — 2026-06-12 (after Modules 1/2/3/5a/6 + the dailies redesigns).
   preserved). Verified on the live partial harvest: probe skipped, 6 `daily_maximum`
   files → 4.06M `t_max` rows. Class (d) cross-module seam.
 
+## Sweep 4 — meta-validation → additive promotion → DuckDB, 2026-06-12 (late)
+- **[Process]** Mutation-tested the validation suite (`prep/meta_validate.py`): 10 gates
+  proven to have TEETH, negative control green. **Finding (open, c-a):** null→fabricated
+  value is unguarded — no gate catches a NULL replaced by a plausible in-range value.
+- **[Med→Fixed]** Fuel composition stored `0.0` (a fabricated measured-zero) where composition
+  is undefined. Fixed in `prep/fuel.py` (`if burn else None`) + promotion; **34** ZIPs NULL
+  (22 no-raster + 12 nothing-burnable), not 12 — caught by the DuckDB diff after my first pass
+  only NULL'd 12.
+- **[Med→Fixed]** The join-resolution sweep COMPUTED fuel's canonical gap but never ASSERTED
+  it (blind spot). Strengthened `check_metric_spatial_universe` to assert the fuel decomposition
+  (1767+22+12) + composition-NULL partition invariant; mutation-confirmed RED.
+- **[Finding, open]** All-NULL claim-without-data columns surfaced by the DuckDB all-null scan:
+  `structures_destroyed`, `erc_pctile`, `zip_trends.robust` — honest-or-drop, do NOT fabricate
+  (STATE.md §5 c-b/c-d/c-e).
+- **[Provenance]** Three additive layers promoted into committed `data/` for HEAD-reproducibility
+  (location change, `state` unchanged). DuckDB is a generated artifact (binary gitignored).
+- Tests: **98 pass / 7 dailies-pending**. Docs reconciled (DATA.md §5 as-built callout).
+
 ## Continuity rule (active)
 Every new artifact (Module 7 export, the Lane-A/B scripts, doc sweeps) is audited
 as written against the four failure classes — predict-then-verify on fresh code,

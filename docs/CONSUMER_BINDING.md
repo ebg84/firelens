@@ -2,6 +2,9 @@
 
 The data layer declares a per-metric coherence contract in `data/manifest.json`
 (`metric_domains`, generated from `prep/domains.py`; human view in `docs/SCHEMA.md`).
+The generated `firelens.duckdb` carries the same contract as a `metric_domains` TABLE and a
+`zip_serving` VIEW (one row per canonical 1,801 ZCTA, NULLs honest — see binding #4), so a
+consumer can read grain/range/state straight from the DB it queries.
 This doc is the **rule the consumers must obey** and the **build-day fragility list** —
 the spots a naive consumer would assume grain/range/granularity instead of reading the
 contract. It is NOT implemented tonight; it is the directive for build day.
