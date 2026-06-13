@@ -212,12 +212,13 @@ def all_fires() -> list[dict]:
     """Every recorded ignition (FOD/FRAP 1992-2025) with point + acres + ignition-day FWI
     percentile — for the map's density overlay. A sample of significant recorded fires, not a census."""
     rows = db.query(
-        "select name, ign_date, acres, fwi_pctile, lat, lon from fire_events "
+        "select name, ign_date, acres, fwi_pctile, lat, lon, cause_class from fire_events "
         "where lat is not null and lon is not null"
     )
+    # NOTE: structures_destroyed is 100% NULL and deliberately NOT returned — never displayed.
     return [
         {"name": r[0], "year": (r[1].year if r[1] is not None else None),
-         "acres": r[2], "fwi_pctile": r[3], "lat": r[4], "lon": r[5]}
+         "acres": r[2], "fwi_pctile": r[3], "lat": r[4], "lon": r[5], "cause_class": r[6]}
         for r in rows
     ]
 

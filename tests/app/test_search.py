@@ -69,6 +69,9 @@ def test_fires_overlay_data_and_honest_label(client):
     assert all(f["lat"] is not None and f["lon"] is not None for f in d["fires"])
     yrs = [f["year"] for f in d["fires"] if f["year"]]
     assert min(yrs) >= 1992 and max(yrs) <= 2025  # federal/state record window, never pre-1992
+    # popup fields are real columns only; the all-NULL structures field is never returned
+    assert "cause_class" in d["fires"][0]
+    assert all("structures_destroyed" not in f for f in d["fires"])
 
 
 def test_geo_centroids_tooltip_fields(client):

@@ -152,17 +152,43 @@ const fireHeat = L.heatLayer([], {
   radius: 16, blur: 22, maxZoom: 10, minOpacity: 0.25,
   gradient: { 0.2: "#3b0a45", 0.4: "#8c2160", 0.6: "#d6453f", 0.8: "#f0902e", 1.0: "#ffe14d" },
 });
-let fireData = [], firesLoaded = false;
+const fireMarkers = L.layerGroup();   // "Significant fires" — its OWN toggle, independent of the heat
+const MAJOR_ACRES = 25000;            // "major" = named & >= 25k acres (~196; includes Tubbs 36,807)
+const MARKER_MIN_ZOOM = 8;            // zoom-gate: markers reveal only when zoomed into a region
+let fireData = [], firesLoaded = false, markersOn = false;
 
-// Re-render the heat layer over the selected year window — pure client-side filter of the
-// already-loaded points (no re-fetch). Count is shown so a sparse window reads as
-// fewer-fires-in-that-window, not missing data.
-function renderFireWindow() {
-  if (!firesLoaded) return;
+function firePopup(f) {
+  const name = f.name.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+  const cause = f.cause_class == null ? "—"
+    : (f.cause_class.startsWith("Missing data") ? "cause undetermined" : f.cause_class);
+  const acres = f.acres == null ? "—" : Math.round(f.acres).toLocaleString();
+  const pct = f.fwi_pctile == null ? null : Math.round(f.fwi_pctile * 100);
+  let html = `<strong>${name} Fire</strong><br>${f.year == null ? "—" : f.year} · ${acres} acres · ${cause}`;
+  if (pct != null) html += `<br>ignited at the ${pct}th percentile of fire weather`;
+  return html;  // real fire_events fields only — never structures/damage (all-NULL, not in payload)
+}
+
+function fireWindow() {
   let lo = +document.getElementById("fw-from").value, hi = +document.getElementById("fw-to").value;
-  if (lo > hi) { const t = lo; lo = hi; hi = t; }
-  const pts = fireData
-    .filter((f) => f.year != null && f.year >= lo && f.year <= hi)
+  return lo > hi ? [hi, lo] : [lo, hi];
+}
+
+async function ensureFireData() {
+  if (firesLoaded) return true;
+  try {
+    const d = await (await fetch("/api/fires")).json();
+    fireData = d.fires.filter((f) => f.lat != null && f.lon != null);
+    firesLoaded = true;
+    return true;
+  } catch (err) { return false; }
+}
+
+// density heatmap over the selected year window (client-side filter; count shown so a sparse
+// window reads as fewer-fires-in-that-window, not missing data)
+function refreshHeat() {
+  if (!firesLoaded) return;
+  const [lo, hi] = fireWindow();
+  const pts = fireData.filter((f) => f.year != null && f.year >= lo && f.year <= hi)
     .map((f) => [f.lat, f.lon, f.fwi_pctile == null ? 0.5 : f.fwi_pctile]);  // intensity = FWI pctile
   fireHeat.setLatLngs(pts);
   document.getElementById("fw-from-lbl").textContent = lo;
@@ -171,25 +197,41 @@ function renderFireWindow() {
     `${pts.length.toLocaleString()} recorded ignitions, ${lo}–${hi}`;
 }
 
+// named MAJOR fires as clickable markers — own toggle, zoom-gated (clean at statewide zoom)
+function refreshMarkers() {
+  fireMarkers.clearLayers();
+  if (!firesLoaded || !markersOn || map.getZoom() < MARKER_MIN_ZOOM) return;
+  const [lo, hi] = fireWindow();
+  fireData.filter((f) => f.name && f.acres != null && f.acres >= MAJOR_ACRES
+      && f.year != null && f.year >= lo && f.year <= hi)
+    .forEach((f) => L.circleMarker([f.lat, f.lon],
+      { radius: 4, color: "#fff", weight: 1, fillColor: "#ff5a3c", fillOpacity: 0.9 })
+      .bindPopup(firePopup(f)).addTo(fireMarkers));
+}
+
 map.on("overlayadd", async (e) => {
-  if (e.layer !== fireHeat) return;
-  document.getElementById("fire-window").style.display = "";
-  if (!firesLoaded) {
-    try {
-      const d = await (await fetch("/api/fires")).json();
-      fireData = d.fires.filter((f) => f.lat != null && f.lon != null);
-      firesLoaded = true;
-    } catch (err) { return; }  // allow retry on re-toggle
+  if (e.layer === fireHeat) {
+    document.getElementById("fire-window").style.display = "";
+    if (await ensureFireData()) refreshHeat();
+  } else if (e.layer === fireMarkers) {
+    markersOn = true;
+    if (await ensureFireData()) refreshMarkers();  // zoom-gated; empty until zoom >= 8
   }
-  renderFireWindow();
 });
 map.on("overlayremove", (e) => {
-  if (e.layer === fireHeat) document.getElementById("fire-window").style.display = "none";
+  if (e.layer === fireHeat) {
+    document.getElementById("fire-window").style.display = "none";
+  } else if (e.layer === fireMarkers) {
+    markersOn = false;
+    fireMarkers.clearLayers();
+  }
 });
+map.on("zoomend", () => { if (markersOn) refreshMarkers(); });
 
 L.control.layers(
   { "Satellite (Esri)": esri, "Light (Positron)": positron },
-  { "Recorded ignitions (FOD/FRAP 1992–2025)": fireHeat },
+  { "Recorded ignitions, heatmap (FOD/FRAP 1992–2025)": fireHeat,
+    "Significant fires, named (zoom in)": fireMarkers },
   { position: "topright", collapsed: false },
 ).addTo(map);
 
@@ -307,8 +349,8 @@ async function doSearch(q) {
   });
   // Fire-history year window: two handles, kept from <= to by pushing the other handle.
   const fwFrom = document.getElementById("fw-from"), fwTo = document.getElementById("fw-to");
-  fwFrom.addEventListener("input", () => { if (+fwFrom.value > +fwTo.value) fwTo.value = fwFrom.value; renderFireWindow(); });
-  fwTo.addEventListener("input", () => { if (+fwTo.value < +fwFrom.value) fwFrom.value = fwTo.value; renderFireWindow(); });
+  fwFrom.addEventListener("input", () => { if (+fwFrom.value > +fwTo.value) fwTo.value = fwFrom.value; refreshHeat(); refreshMarkers(); });
+  fwTo.addEventListener("input", () => { if (+fwTo.value < +fwFrom.value) fwFrom.value = fwTo.value; refreshHeat(); refreshMarkers(); });
   document.getElementById("ex-panel").innerHTML = `<div class="hint">Loading the map…</div>`;
   try {
     const r = await fetch("/api/geo/zcta");
